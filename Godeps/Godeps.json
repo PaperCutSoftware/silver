@@ -1,0 +1,49 @@
+{
+	"ImportPath": "github.com/papercutsoftware/silver",
+	"GoVersion": "go1.2.1",
+	"Packages": [
+		"./..."
+	],
+	"Deps": [
+		{
+			"ImportPath": "bitbucket.org/kardianos/osext",
+			"Comment": "null-9",
+			"Rev": "364fb577de68fb646c4cb39cc0e09c887ee16376"
+		},
+		{
+			"ImportPath": "bitbucket.org/kardianos/service",
+			"Comment": "null-47",
+			"Rev": "ef0c8c3ba9ee87a9db5b4dedf823d623d52efd34"
+		},
+		{
+			"ImportPath": "code.google.com/p/winsvc/eventlog",
+			"Comment": "null-4",
+			"Rev": "0dd894180583b4c421f5d16203c90224ba22505d"
+		},
+		{
+			"ImportPath": "code.google.com/p/winsvc/mgr",
+			"Comment": "null-4",
+			"Rev": "0dd894180583b4c421f5d16203c90224ba22505d"
+		},
+		{
+			"ImportPath": "code.google.com/p/winsvc/registry",
+			"Comment": "null-4",
+			"Rev": "0dd894180583b4c421f5d16203c90224ba22505d"
+		},
+		{
+			"ImportPath": "code.google.com/p/winsvc/svc",
+			"Comment": "null-4",
+			"Rev": "0dd894180583b4c421f5d16203c90224ba22505d"
+		},
+		{
+			"ImportPath": "code.google.com/p/winsvc/winapi",
+			"Comment": "null-4",
+			"Rev": "0dd894180583b4c421f5d16203c90224ba22505d"
+		},
+		{
+			"ImportPath": "github.com/robfig/cron",
+			"Comment": "v1-3-gb024fc5",
+			"Rev": "b024fc5ea0e34bc3f83d9941c8d60b0622bfaca4"
+		}
+	]
+}

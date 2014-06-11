@@ -1,0 +1,23 @@
+{
+    "url": "http://localhost:8080/version-2.zip",
+    "version": "2",
+    "sha256": "3eb13ed8a1203b30ebb554d4e68638a437dc8cc297640b2c87e550ac519359b3",
+    "operations": [
+        {
+            "action": "copy",
+            "args": ["v0002/testing.txt", "v0002/testing-copy.txt"]
+        },
+        {
+            "action": "move",
+            "args": ["v0002/testing.txt", "v0002/testing-moved.txt"]
+        },
+        {
+            "action": "batch-rename",
+            "args": ["v0002", "testing(.*)", "new$1"]
+        },
+        {
+            "action": "move",
+            "args": ["v0002", "v-done-0002"]
+        }
+    ]
+}
