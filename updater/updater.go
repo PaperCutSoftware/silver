@@ -45,7 +45,7 @@ var (
 )
 
 type UpgradeInfo struct {
-	Url        string
+	URL        string
 	Version    string
 	Md5        string
 	Sha1       string
@@ -107,7 +107,7 @@ func upgradeIfRequired() (upgraded bool, err error) {
 		return false, err
 	}
 
-	if upgradeInfo == nil || upgradeInfo.Url == "" {
+	if upgradeInfo == nil || upgradeInfo.URL == "" {
 		// No upgrade required
 		return false, nil
 	}
@@ -115,9 +115,9 @@ func upgradeIfRequired() (upgraded bool, err error) {
 	// Download
 	fmt.Printf("Downloading version %s update from %s ...\n",
 		upgradeInfo.Version,
-		upgradeInfo.Url)
+		upgradeInfo.URL)
 
-	zipfile, err := download(upgradeInfo.Url)
+	zipfile, err := download(upgradeInfo.URL)
 	if err != nil {
 		return false, err
 	}

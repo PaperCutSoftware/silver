@@ -4,6 +4,7 @@
 // Use of this source code is governed by an MIT or GPL Version 2 license.
 // See the project's LICENSE file for more information.
 //
+
 package run
 
 import (
@@ -23,8 +24,8 @@ var pingFileCache = struct {
 	m map[string]string
 }{m: make(map[string]string)}
 
-func pingURL(pingUrl string, timeout time.Duration) (ok bool, err error) {
-	u, err := url.Parse(pingUrl)
+func pingURL(pingURL string, timeout time.Duration) (ok bool, err error) {
+	u, err := url.Parse(pingURL)
 	if err != nil {
 		return true, errors.New("Invalid Ping URL!") // Assume OK
 	}
@@ -36,9 +37,9 @@ func pingURL(pingUrl string, timeout time.Duration) (ok bool, err error) {
 	case "http":
 		fallthrough
 	case "https":
-		return pingHTTP(pingUrl, timeout)
+		return pingHTTP(pingURL, timeout)
 	case "file":
-		return pingFile(pingUrl)
+		return pingFile(pingURL)
 	default:
 		return true, errors.New("Unsupported URL Scheme") // Assume OK
 	}
@@ -76,8 +77,8 @@ func pingTCPEcho(host string, timeout time.Duration) (ok bool, err error) {
 	return true, nil
 }
 
-func pingFile(fileUrl string) (ok bool, err error) {
-	file := strings.TrimPrefix(fileUrl, "file://")
+func pingFile(fileURL string) (ok bool, err error) {
+	file := strings.TrimPrefix(fileURL, "file://")
 	info, err := os.Stat(file)
 	if err != nil {
 		return true, err

@@ -99,9 +99,8 @@ func getConfigFilePath() string {
 	extension := filepath.Ext(exePath)
 	if strings.ToLower(extension) == ".exe" {
 		return exePath[0:len(exePath)-4] + ".conf"
-	} else {
-		return exePath + ".conf"
 	}
+	return exePath + ".conf"
 }
 
 func loadConfigFromFile(configFile string) (config *Config, err error) {

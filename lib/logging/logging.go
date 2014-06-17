@@ -5,6 +5,7 @@
 // See the project's LICENSE file for more information.
 //
 // Contributors:  chris.dance@papercut.com
+
 //
 // Silver's logging requirements are very basic.  We'll roll our own rather than
 // bring in a fatter dependency like Seelog. All we require on top of Go's basic

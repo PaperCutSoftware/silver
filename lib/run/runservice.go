@@ -4,6 +4,7 @@
 // Use of this source code is governed by an MIT or GPL Version 2 license.
 // See the project's LICENSE file for more information.
 //
+
 package run
 
 import (
@@ -74,8 +75,8 @@ func RunService(c *ServiceConfig, terminate chan struct{}) (err error) {
 
 func wrapWithMonitor(terminate chan struct{}, c *ServiceConfig) (trigger chan struct{}) {
 
-	const DEFAULT_INTERVAL = 30
-	const DEFAULT_TIMEOUT = 30
+	const defaultInterval = 30
+	const defaultTimeout = 30
 
 	trigger = make(chan struct{})
 	go func() {
@@ -83,11 +84,11 @@ func wrapWithMonitor(terminate chan struct{}, c *ServiceConfig) (trigger chan st
 		monitor := c.MonitorPing
 		intervalSecs := monitor.IntervalSecs
 		if intervalSecs == 0 {
-			intervalSecs = DEFAULT_INTERVAL
+			intervalSecs = defaultInterval
 		}
 		var timeout time.Duration
 		if monitor.TimeoutSecs == 0 {
-			timeout = DEFAULT_TIMEOUT * time.Second
+			timeout = defaultTimeout * time.Second
 		} else {
 			timeout = time.Duration(monitor.TimeoutSecs) * time.Second
 		}

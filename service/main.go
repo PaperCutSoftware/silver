@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	REFRESH_POLL_SECS = 10
+	defaultRefreshPollSecs = 10
 )
 
 var (
@@ -240,7 +240,7 @@ func watchForReload() {
 	}
 	for {
 		// FIXME: File system notification rather than polling?
-		time.Sleep(REFRESH_POLL_SECS * time.Second)
+		time.Sleep(defaultRefreshPollSecs * time.Second)
 		if _, err := os.Stat(f); err == nil {
 			if err := os.Remove(f); err == nil {
 				logger.Printf("Reload requested")

@@ -4,15 +4,18 @@
 // Use of this source code is governed by an MIT or GPL Version 2 license.
 // See the project's LICENSE file for more information.
 //
-// +build nohttp
+
+// +build windows
 
 package run
 
 import (
-	"errors"
-	"time"
+	"os/exec"
+	"syscall"
 )
 
-func pingHTTP(pingURL string, timeout time.Duration) (ok bool, err error) {
-	return true, errors.New("HTTP monitoring is not supported in this version. Use the full version")
+func setProcAttributes(cmd *exec.Cmd) {
+	*cmd.SysProcAttr = &syscall.SysProcAttr{
+		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
+	}
 }

@@ -7,9 +7,10 @@
 package main
 
 import (
-	"bitbucket.org/kardianos/osext"
 	"path/filepath"
 	"strings"
+
+	"bitbucket.org/kardianos/osext"
 )
 
 func exePath() string {
@@ -38,7 +39,6 @@ func serviceName() (name string) {
 	extension := filepath.Ext(name)
 	if strings.ToLower(extension) == ".exe" {
 		return name[0 : len(name)-4]
-	} else {
-		return name
 	}
+	return name
 }

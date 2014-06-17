@@ -4,6 +4,7 @@
 // Use of this source code is governed by an MIT or GPL Version 2 license.
 // See the project's LICENSE file for more information.
 //
+
 package run
 
 import (
@@ -86,10 +87,8 @@ func RunWithMonitor(c *RunConfig, terminate chan struct{}) (exitCode int, err er
 	procInfo.status = make(chan struct{})
 	defer close(procInfo.status)
 
-	// TODO - windows: This is required to control brake works
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
-	}
+	// This is required to control brake works on Windows
+	setProcAttributes(cmd)
 
 	if err := cmd.Start(); err != nil {
 		return 255, err
@@ -188,9 +187,8 @@ func isTerminated(terminate chan struct{}) bool {
 	case _, ok := <-terminate:
 		if ok {
 			return false
-		} else {
-			return true
 		}
+		return true
 	default:
 		return false
 	}

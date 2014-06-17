@@ -17,9 +17,9 @@ import (
 	"time"
 )
 
-func pingHTTP(pingUrl string, timeout time.Duration) (ok bool, err error) {
+func pingHTTP(pingURL string, timeout time.Duration) (ok bool, err error) {
 	client := httpClientWithTimeout(timeout)
-	resp, err := client.Get(pingUrl)
+	resp, err := client.Get(pingURL)
 	if err != nil {
 		return false, err
 	}
