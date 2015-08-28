@@ -361,7 +361,7 @@ func validateArgs() bool {
 	}
 	if len(os.Args) < 2 {
 		// No command to validate
-		return true
+		return false
 	}
 
 	for _, arg := range validArgs {
