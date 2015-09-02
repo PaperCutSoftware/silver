@@ -1,6 +1,6 @@
 {
 	"ImportPath": "github.com/papercutsoftware/silver",
-	"GoVersion": "go1.2.1",
+	"GoVersion": "go1.4",
 	"Packages": [
 		"./..."
 	],
@@ -11,39 +11,21 @@
 			"Rev": "364fb577de68fb646c4cb39cc0e09c887ee16376"
 		},
 		{
-			"ImportPath": "bitbucket.org/kardianos/service",
-			"Comment": "null-47",
-			"Rev": "ef0c8c3ba9ee87a9db5b4dedf823d623d52efd34"
+			"ImportPath": "github.com/kardianos/osext",
+			"Rev": "6e7f843663477789fac7c02def0d0909e969b4e5"
 		},
 		{
-			"ImportPath": "code.google.com/p/winsvc/eventlog",
-			"Comment": "null-4",
-			"Rev": "0dd894180583b4c421f5d16203c90224ba22505d"
-		},
-		{
-			"ImportPath": "code.google.com/p/winsvc/mgr",
-			"Comment": "null-4",
-			"Rev": "0dd894180583b4c421f5d16203c90224ba22505d"
-		},
-		{
-			"ImportPath": "code.google.com/p/winsvc/registry",
-			"Comment": "null-4",
-			"Rev": "0dd894180583b4c421f5d16203c90224ba22505d"
-		},
-		{
-			"ImportPath": "code.google.com/p/winsvc/svc",
-			"Comment": "null-4",
-			"Rev": "0dd894180583b4c421f5d16203c90224ba22505d"
-		},
-		{
-			"ImportPath": "code.google.com/p/winsvc/winapi",
-			"Comment": "null-4",
-			"Rev": "0dd894180583b4c421f5d16203c90224ba22505d"
+			"ImportPath": "github.com/kardianos/service",
+			"Rev": "5ab7ce2c8f38cc0ca92d711f7c4f3ea70d347702"
 		},
 		{
 			"ImportPath": "github.com/robfig/cron",
-			"Comment": "v1-3-gb024fc5",
-			"Rev": "b024fc5ea0e34bc3f83d9941c8d60b0622bfaca4"
+			"Comment": "v1-5-g67823cd",
+			"Rev": "67823cd24dece1b04cced3a0a0b3ca2bc84d875e"
+		},
+		{
+			"ImportPath": "golang.org/x/sys/windows",
+			"Rev": "e6e5e023fcebcbe305760bc8018d2364edda7acf"
 		}
 	]
 }

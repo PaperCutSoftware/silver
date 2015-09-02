@@ -7,7 +7,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -16,7 +15,8 @@ import (
 	"sync"
 	"time"
 
-	"bitbucket.org/kardianos/service/stdservice"
+	"github.com/kardianos/service"
+
 	"github.com/robfig/cron"
 
 	"github.com/papercutsoftware/silver/lib/logging"
@@ -31,7 +31,6 @@ const (
 var (
 	logger      *log.Logger
 	config      *Config
-	configErr   error
 	terminate   chan struct{}
 	done        sync.WaitGroup
 	cronManager *cron.Cron
@@ -40,25 +39,24 @@ var (
 func main() {
 
 	// Parse config (we don't action any errors quite yet)
-	config, configErr = LoadConfig()
-	svcDisplayName := ""
-	svcDescription := ""
-	if configErr == nil {
-		svcDisplayName = config.ServiceDescription.DisplayName
-		svcDescription = config.ServiceDescription.Description
+	var err error
+	config, err = LoadConfig()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: Invalid config - %v\n", err)
+		os.Exit(1)
 	}
 
 	normalizeArgs()
 
 	// Check args
 	if !validateArgs() {
-		fmt.Printf("%s (%s)\n", svcDisplayName,
+		fmt.Printf("%s (%s)\n", config.ServiceDescription.DisplayName,
 			serviceName())
-		fmt.Printf("%s\n\n", svcDescription)
+		fmt.Printf("%s\n\n", config.ServiceDescription.Description)
 		fmt.Printf("Usage:\n")
-		fmt.Printf("%s [install|remove|start|stop|command|validate|run|help] [command-name]\n", exeName())
+		fmt.Printf("%s [install|uninstall|start|stop|command|validate|run|help] [command-name]\n", exeName())
 		fmt.Printf("  install   - Install the service.\n")
-		fmt.Printf("  remove    - Remove/uninstall the service.\n")
+		fmt.Printf("  uninstall    - Remove/uninstall the service.\n")
 		fmt.Printf("  start     - Start an installed service.\n")
 		fmt.Printf("  stop      - Stop an installed service.\n")
 		fmt.Printf("  validate  - Test the configuration file.\n")
@@ -74,12 +72,7 @@ func main() {
 	}
 
 	// Run command if requested
-	if len(os.Args) > 1 && (os.Args[1] == "command" ||
-		os.Args[1] == "test" || os.Args[1] == "validate") {
-		if configErr != nil {
-			fmt.Fprintf(os.Stderr, "ERROR: Invalid config - %v\n", configErr)
-			os.Exit(1)
-		}
+	if len(os.Args) > 1 && (os.Args[1] == "command" || os.Args[1] == "validate") {
 		if os.Args[1] == "command" {
 			execCommand()
 		} else {
@@ -90,28 +83,46 @@ func main() {
 	}
 
 	// Setup log file out
-	logFile := ""
-	maxSize := int64(0)
-	if configErr == nil {
-		logFile = config.ServiceConfig.LogFile
-		maxSize = int64(config.ServiceConfig.LogFileMaxSizeMb) * 1024 * 1024
-	}
+	logFile := config.ServiceConfig.LogFile
+	maxSize := int64(config.ServiceConfig.LogFileMaxSizeMb) * 1024 * 1024
 	if logFile == "" {
 		logFile = serviceName() + ".log"
 	}
 	logger = logging.NewFileLoggerWithMaxSize(logFile, maxSize)
 
-	// Run service
-	srvConfig := &stdservice.Config{
-		Name:            serviceName(),
-		DisplayName:     svcDisplayName,
-		LongDescription: svcDescription,
-
-		Start: onServiceStart,
-		Init:  onServiceInit,
-		Stop:  onServiceStop,
+	// Setup service
+	svcConfig := &service.Config{
+		Name:        serviceName(),
+		DisplayName: config.ServiceDescription.DisplayName,
+		Description: config.ServiceDescription.Description,
 	}
-	srvConfig.Run()
+
+	prog := &program{}
+	svc, err := service.New(prog, svcConfig)
+	if err != nil {
+		fmt.Println("ERROR: Invalid service config: %s", err)
+		os.Exit(1)
+	}
+
+	if len(os.Args) > 1 && os.Args[1] != "run" {
+		err = service.Control(svc, os.Args[1])
+		if err != nil {
+			fmt.Println("ERROR: Invalid service command: %v", err)
+			os.Exit(1)
+		}
+		os.Exit(0)
+	}
+
+	err = svc.Run()
+	if err != nil {
+		fmt.Println("ERROR: %s", err)
+		os.Exit(1)
+	}
+
+	pidFile := config.ServiceConfig.PidFile
+	if pidFile != "" {
+		ioutil.WriteFile(pidFile, []byte(fmt.Sprintf("%d\n", os.Getpid())), 0644)
+	}
 }
 
 func execCommand() {
@@ -159,36 +170,23 @@ func execCommand() {
 	os.Exit(exitCode)
 }
 
-func onServiceInit(c *stdservice.Config) error {
-	// Report config error here so it's logged.
-	if configErr != nil {
-		msg := fmt.Sprintf("ERROR: Invalid service config - '%v'\n", configErr)
-		logger.Printf(msg)
-		return errors.New(msg) // This will log at the service event layer
-	}
+type program struct{}
 
-	pidFile := config.ServiceConfig.PidFile
-	if pidFile != "" {
-		ioutil.WriteFile(pidFile, []byte(fmt.Sprintf("%d\n", os.Getpid())), 0644)
-	}
-
-	return nil
-}
-
-func onServiceStart(c *stdservice.Config) {
+func (p *program) Start(s service.Service) error {
 	msg := fmt.Sprintf("Service '%s' started.", serviceName())
 	logger.Printf(msg)
-	c.Logger().Info(msg)
+	sysLogger, err := s.Logger(nil)
+	if err != nil {
+		sysLogger.Info(msg)
+	}
 
 	doStart()
 
 	go watchForReload()
-
-	// onService should never return
-	select {}
+	return nil
 }
 
-func onServiceStop(c *stdservice.Config) {
+func (p *program) Stop(s service.Service) error {
 	logger.Printf(fmt.Sprintf("Stopping '%s' service...", serviceName()))
 
 	doStop()
@@ -200,7 +198,12 @@ func onServiceStop(c *stdservice.Config) {
 
 	msg := fmt.Sprintf("Stopped '%s' service.", serviceName())
 	logger.Printf(msg)
-	c.Logger().Info(msg)
+
+	sysLogger, err := s.Logger(nil)
+	if err != nil {
+		sysLogger.Info(msg)
+	}
+	return nil
 }
 
 func doStart() {
@@ -339,10 +342,11 @@ func normalizeArgs() {
 
 	// Setup a few 1st command aliases
 	aliases := map[string]string{
-		"setup":     "install",
-		"uninstall": "remove",
-		"delete":    "remove",
-		"check":     "validate",
+		"setup":  "install",
+		"remove": "uninstall",
+		"delete": "uninstall",
+		"check":  "validate",
+		"test":   "validate",
 	}
 	if alias, ok := aliases[os.Args[1]]; ok {
 		os.Args[1] = alias
@@ -352,7 +356,7 @@ func normalizeArgs() {
 func validateArgs() bool {
 	validArgs := [...]string{
 		"install",
-		"remove",
+		"uninstall",
 		"start",
 		"stop",
 		"validate",
