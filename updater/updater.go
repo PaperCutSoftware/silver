@@ -41,7 +41,6 @@ var (
 	showVersion     = flag.Bool("v", false, "Display current installed version and exit")
 	overrideVersion = flag.String("c", "", "Override current installed version")
 	httpProxy       = flag.String("p", "", "Set HTTP proxy in format http://server:port")
-	checkURL        = "" // First Arg
 )
 
 type UpgradeInfo struct {
@@ -78,12 +77,14 @@ func main() {
 	if flag.NArg() == 0 {
 		usage()
 	}
-
-	checkURL = flag.Arg(0)
+	checkURL := flag.Arg(0)
+	if !strings.HasPrefix(strings.ToLower(checkURL), "https") {
+		fmt.Fprintf(os.Stderr, "ERROR: The update URL must be HTTPS for security reasons!\n")
+		os.Exit(1)
+	}
 
 	setupHTTPProxy()
-
-	ok, err := upgradeIfRequired()
+	ok, err := upgradeIfRequired(checkURL)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 		os.Exit(1)
@@ -95,7 +96,7 @@ func main() {
 	}
 }
 
-func upgradeIfRequired() (upgraded bool, err error) {
+func upgradeIfRequired(checkURL string) (upgraded bool, err error) {
 	currentVer := readCurrentVersion()
 	if len(*overrideVersion) > 0 {
 		currentVer = *overrideVersion
@@ -127,7 +128,7 @@ func upgradeIfRequired() (upgraded bool, err error) {
 		fmt.Printf("Download complete (%d bytes).\n", size)
 	}
 
-	// Validate checksum if provided
+	// Validate checksum
 	var fileSum string
 	var requiredSum string
 	switch {
@@ -137,12 +138,11 @@ func upgradeIfRequired() (upgraded bool, err error) {
 	case len(upgradeInfo.Sha1) > 0:
 		requiredSum = upgradeInfo.Sha1
 		fileSum = checksum("sha1", zipfile)
-	case len(upgradeInfo.Md5) > 0:
-		requiredSum = upgradeInfo.Md5
-		fileSum = checksum("md5", zipfile)
+	default:
+		return false, errors.New("Upgrade failed: The upgrade URL did not provide a checksum!")
 	}
 
-	if len(requiredSum) > 0 && fileSum != requiredSum {
+	if fileSum != requiredSum {
 		return false, errors.New("Download checksum failed!")
 	}
 
