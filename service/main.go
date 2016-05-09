@@ -100,14 +100,14 @@ func main() {
 	prog := &program{}
 	svc, err := service.New(prog, svcConfig)
 	if err != nil {
-		fmt.Println("ERROR: Invalid service config: %s", err)
+		fmt.Printf("ERROR: Invalid service config: %v\n", err)
 		os.Exit(1)
 	}
 
 	if len(os.Args) > 1 && os.Args[1] != "run" {
 		err = service.Control(svc, os.Args[1])
 		if err != nil {
-			fmt.Println("ERROR: Invalid service command: %v", err)
+			fmt.Printf("ERROR: Invalid service command: %v\n", err)
 			os.Exit(1)
 		}
 		os.Exit(0)
@@ -115,7 +115,7 @@ func main() {
 
 	err = svc.Run()
 	if err != nil {
-		fmt.Println("ERROR: %s", err)
+		fmt.Printf("ERROR: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -258,7 +258,7 @@ func watchForReload() {
 
 func execStartupTasks() {
 	for _, task := range config.StartupTasks {
-		runTask := func() {
+		runTask := func(task *StartupTask) {
 			defer done.Done()
 			done.Add(1)
 
@@ -278,16 +278,16 @@ func execStartupTasks() {
 			}
 		}
 		if task.Async {
-			go runTask()
+			go runTask(task)
 		} else {
-			runTask()
+			runTask(task)
 		}
 	}
 }
 
 func startServices() {
 	for _, service := range config.Services {
-		runService := func() {
+		go func(service *Service) {
 			defer done.Done()
 			done.Add(1)
 
@@ -302,8 +302,7 @@ func startServices() {
 			if err := run.RunService(sc, terminate); err != nil {
 				logger.Printf("ERROR: Service '%s' reported: %v", sc.Path, err)
 			}
-		}
-		go runService()
+		}(service)
 	}
 }
 
