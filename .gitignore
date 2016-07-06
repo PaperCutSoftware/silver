@@ -1,6 +1,8 @@
 # Project Ignores
+/.idea/
 /.gopath/
 /build/
+.DS_Store
 
 # Compiled Object files, Static and Dynamic libs (Shared Objects)
 *.o

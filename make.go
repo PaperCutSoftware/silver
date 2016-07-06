@@ -81,12 +81,6 @@ func verifyEnv() {
 		fmt.Println("   go make.go setup")
 	}
 
-	if runtime.GOOS == "windows" {
-		if _, err := exec.LookPath("upx"); err != nil {
-			fmt.Println("Warning: Can't find UPX on PATH. Binaries will not be compressed.")
-		}
-	}
-
 }
 
 func setupEnv() {
@@ -106,18 +100,6 @@ func buildAll() {
 	runCmd("godep", "go", "build", "-o", makeOutputPath(buildOutputDir, "updater"), rootNamespace+"/updater")
 	runCmd("godep", "go", "build", "-o", makeOutputPath(buildOutputDir, "service"), rootNamespace+"/service")
 	runCmd("godep", "go", "build", "-tags", "nohttp", "-o", makeOutputPath(buildOutputDir, "service-no-http"), rootNamespace+"/service")
-
-	// UPX our binaries if possible
-	if _, err := exec.LookPath("upx"); err == nil {
-		fmt.Printf("Compressing binaries...\n")
-
-		upxDir := filepath.Join(buildOutputDir, "compressed")
-		makeDir(upxDir)
-
-		runCmd("upx", makeOutputPath(buildOutputDir, "updater"), "-o", makeOutputPath(upxDir, "updater"))
-		runCmd("upx", makeOutputPath(buildOutputDir, "service"), "-o", makeOutputPath(upxDir, "service"))
-		runCmd("upx", makeOutputPath(buildOutputDir, "service-no-http"), "-o", makeOutputPath(upxDir, "service-no-http"))
-	}
 
 	fmt.Printf("\nBuild done. Files in '%s'\n", buildOutputDir)
 
