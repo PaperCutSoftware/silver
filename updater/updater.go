@@ -33,7 +33,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/papercutsoftware/silver/lib/pathutils"
+	"github.com/PaperCutSoftware/silver/lib/pathutils"
 )
 
 var (
@@ -41,6 +41,7 @@ var (
 	showVersion     = flag.Bool("v", false, "Display current installed version and exit")
 	overrideVersion = flag.String("c", "", "Override current installed version")
 	httpProxy       = flag.String("p", "", "Set HTTP proxy in format http://server:port")
+	unsafeHTTP      = flag.Bool("unsafe", false, "Debug Only: Support non-https update checks for testing.")
 )
 
 type UpgradeInfo struct {
@@ -78,7 +79,8 @@ func main() {
 		usage()
 	}
 	checkURL := flag.Arg(0)
-	if !strings.HasPrefix(strings.ToLower(checkURL), "https") {
+
+	if !*unsafeHTTP && !strings.HasPrefix(strings.ToLower(checkURL), "https") {
 		fmt.Fprintf(os.Stderr, "ERROR: The update URL must be HTTPS for security reasons!\n")
 		os.Exit(1)
 	}
@@ -194,11 +196,11 @@ func upgradeIfRequired(checkURL string) (upgraded bool, err error) {
 func fileSize(file string) (size int64, err error) {
 	f, err := os.Open(file)
 	if err != nil {
-		return
+		return 0, err
 	}
 	fi, err := f.Stat()
 	if err != nil {
-		return
+		return 0, err
 	}
 	return fi.Size(), nil
 }
