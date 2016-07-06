@@ -223,6 +223,10 @@ func checkUpdate(url string, currentVer string) (*UpgradeInfo, error) {
 		return nil, nil
 	}
 
+	if res.StatusCode >= http.StatusBadRequest {
+		return nil, fmt.Errorf("Got an error from the update url: %s", res.Status)
+	}
+
 	dec := json.NewDecoder(res.Body)
 	var info UpgradeInfo
 	err = dec.Decode(&info)
