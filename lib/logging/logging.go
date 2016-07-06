@@ -83,7 +83,7 @@ func (rf *rollingFile) roll() error {
 }
 
 func openLogFile(name string) (f *os.File, err error) {
-	f, err = os.OpenFile(name, os.O_WRONLY|os.O_CREATE, 0644)
+	f, err = os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 	if err == nil {
 		openLogFiles[name] = f
 	}
