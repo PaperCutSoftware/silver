@@ -12,34 +12,48 @@ import (
 	"time"
 )
 
-func TestExecGUIProgram(t *testing.T) {
+func Test_RunCommand_WithGUIProgram(t *testing.T) {
 
-	const timeout = 2
+	// Arrange
+	const terminateAfter = 2 * time.Second
 
-	c := new(CommandConfig)
-	c.Path = "c:\\Windows\\notepad.exe"
+	c := &CommandConfig{
+		RunConfig: RunConfig{
+			Path: "c:\\Windows\\notepad.exe",
+			GracefulShutdownTimeoutSecs: 2,
+		},
+	}
 
 	// Skip if we can't find notepad.
-	if _, err := os.Stat(c.Path); err == nil {
-		terminate := make(chan struct{})
-		go func() {
-			time.Sleep(timeout * time.Second)
-			close(terminate)
-		}()
+	if _, err := os.Stat(c.Path); err != nil {
+		t.Skip("Skipping RunCommand_WithGUIProgram because notepad.exe does not exist")
+	}
+	startingTime := time.Now().UTC()
 
-		startingTime := time.Now().UTC()
-		_, err := RunCommand(c, terminate)
-		endingTime := time.Now().UTC()
+	terminate := make(chan struct{})
+	go func() {
+		time.Sleep(terminateAfter)
+		close(terminate)
+	}()
 
-		if err != nil {
-			t.Errorf("Notepad did not exit cleanly: %v", err)
-		}
+	// Act
+	_, err := RunCommand(c, terminate)
 
-		duration := endingTime.Sub(startingTime)
+	// Assert no error
+	if err != nil {
+		t.Errorf("Notepad did not exit cleanly: %v", err)
+	}
 
-		if duration < time.Duration(timeout*time.Second) {
-			t.Error("Command did not timeout!")
-		}
+	// Assert time
+	endingTime := time.Now().UTC()
+	duration := endingTime.Sub(startingTime)
+
+	if duration < terminateAfter {
+		t.Error("Command run quicker than expected!")
+	}
+	const threadhold = 500 * time.Millisecond
+	if duration > terminateAfter+threadhold {
+		t.Error("Terminate took longer than expected!")
 	}
 }
 
