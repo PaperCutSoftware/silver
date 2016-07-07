@@ -50,6 +50,14 @@ var (
 	buildOutputDir string
 )
 
+func usage() {
+	fmt.Println("Usage: go run make.go [command]")
+	fmt.Println("    all")
+	fmt.Println("    test")
+	fmt.Println("    setup\n")
+	os.Exit(1)
+}
+
 func main() {
 
 	var err error
@@ -66,12 +74,14 @@ func main() {
 	}
 
 	switch action {
+	case "all":
+		buildAll()
 	case "test":
 		testAll()
 	case "setup":
 		setupEnv()
 	default:
-		buildAll()
+		usage()
 	}
 }
 
@@ -80,7 +90,6 @@ func verifyEnv() {
 		fmt.Println("Please install godep. Run:")
 		fmt.Println("   go make.go setup")
 	}
-
 }
 
 func setupEnv() {
@@ -101,7 +110,7 @@ func buildAll() {
 	runCmd("godep", "go", "build", "-o", makeOutputPath(buildOutputDir, "service"), rootNamespace+"/service")
 	runCmd("godep", "go", "build", "-tags", "nohttp", "-o", makeOutputPath(buildOutputDir, "service-no-http"), rootNamespace+"/service")
 
-	fmt.Printf("\nBuild done. Files in '%s'\n", buildOutputDir)
+	fmt.Printf("\nCOMPLETE. You'll find the files in:\n    '%s'\n", buildOutputDir)
 
 }
 
