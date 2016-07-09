@@ -12,6 +12,7 @@ import (
 	"runtime"
 	"testing"
 	"time"
+	"syscall"
 
 	"github.com/papercutsoftware/silver/lib/osutils"
 )
@@ -20,8 +21,8 @@ func Test_ProcessKillGracefully_ConsoleProgram(t *testing.T) {
 	var testCmd string
 	var testArgs []string
 	if runtime.GOOS == "windows" {
-		testCmd = `c:\Windows\System32\ping.exe`
-		testArgs = []string{"-n", "1000", "localhost"}
+		testCmd = `c:\Windows\System32\msg.exe`
+		testArgs = []string{"*"}
 	} else {
 		testCmd = "ping"
 		testArgs = []string{"localhost"}
@@ -45,17 +46,20 @@ func Test_ProcessKillGracefully_GUIProgram(t *testing.T) {
 func testProcessKillGracefully(command string, args []string, t *testing.T) {
 	t.Logf("Starting %v %v", command, args)
 	cmd := exec.Command(command, args...)
+	cmd.SysProcAttr = &syscall.SysProcAttr{
+		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
+	}
 	err := cmd.Start()
-	// Give time for notepad to open
+	// Give time to open
 	time.Sleep(1 * time.Second)
 	if err != nil {
 		t.Fatalf("Error starting test cmd: %v", cmd)
 	}
+	start := time.Now()
 	go func() {
 		err := cmd.Wait()
-		t.Logf("Cmd complete with error: %v", err)
+		t.Logf("Cmd complete in %v : %v", time.Now().Sub(start), err)
 	}()
-	start := time.Now()
 
 	// Act
 	err = osutils.ProcessKillGracefully(cmd.Process.Pid, 5*time.Second)

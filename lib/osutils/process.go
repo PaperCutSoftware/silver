@@ -7,18 +7,22 @@
 
 package osutils
 
-import "time"
+import (
+	"time"
+)
 
 // ProcessKillGracefully kills a process gracefully allowing maxTime before
 // a hard kill is issued.
+//
+// IMPORTANT: On Windows processes started form Go must be in their own process group.
+// cmd.SysProcAttr = &syscall.SysProcAttr{
+//	CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
+// }
 func ProcessKillGracefully(pid int, maxTime time.Duration) error {
 	const checkPeriod = 500 * time.Millisecond
 	end := time.Now().Add(maxTime)
 
-	if err := ProcessSignalQuit(pid); err != nil {
-		return err
-	}
-
+	ProcessSignalQuit(pid)
 	for {
 		if time.Now().After(end) {
 			break
@@ -53,6 +57,11 @@ func ProcessKillHard(pid int) error {
 
 // ProcessSignalQuit instructs a process to cleanly exist (SIGTERM/SIGINT on Unix
 // and Control-C or WM_QUIT on Windows)
+//
+// IMPORTANT: On Windows processes started form Go must be in their own process group.
+// cmd.SysProcAttr = &syscall.SysProcAttr{
+//	CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
+// }
 func ProcessSignalQuit(pid int) error {
 	return processSignalQuit(pid)
 }

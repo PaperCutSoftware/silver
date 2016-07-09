@@ -69,7 +69,7 @@ func sendCtrlBreak(pid int) error {
 	procGenerateConsoleCtrlEvent := kernel32.NewProc("GenerateConsoleCtrlEvent")
 	r, _, _ := procGenerateConsoleCtrlEvent.Call(syscall.CTRL_BREAK_EVENT, uintptr(pid))
 	if r == 0 {
-		fmt.Errorf("Error calling GenerateConsoleCtrlEvent")
+		return fmt.Errorf("Error calling GenerateConsoleCtrlEvent")
 	}
 	return nil
 }
