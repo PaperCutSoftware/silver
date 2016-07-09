@@ -24,7 +24,7 @@ func Test_ProcessKillGracefully_ConsoleProgram(t *testing.T) {
 		testArgs = []string{"-n", "1000", "localhost"}
 	} else {
 		testCmd = "ping"
-		testArgs = []string{}
+		testArgs = []string{"localhost"}
 	}
 	testProcessKillGracefully(testCmd, testArgs, t)
 }
@@ -36,8 +36,8 @@ func Test_ProcessKillGracefully_GUIProgram(t *testing.T) {
 		testCmd = `c:\Windows\notepad.exe`
 		testArgs = []string{}
 	} else {
-		testCmd = "ping"
-		testArgs = []string{}
+		testCmd = "/sbin/ping"
+		testArgs = []string{"localhost"}
 	}
 	testProcessKillGracefully(testCmd, testArgs, t)
 }
@@ -47,7 +47,7 @@ func testProcessKillGracefully(command string, args []string, t *testing.T) {
 	cmd := exec.Command(command, args...)
 	err := cmd.Start()
 	// Give time for notepad to open
-	time.Sleep(1*time.Second)
+	time.Sleep(1 * time.Second)
 	if err != nil {
 		t.Fatalf("Error starting test cmd: %v", cmd)
 	}
@@ -87,7 +87,7 @@ func TestProcessIsRunning_DetectsRunning(t *testing.T) {
 		testArgs = []string{"-n", "1000", "localhost"}
 	} else {
 		testCmd = "ping"
-		testArgs = []string{}
+		testArgs = []string{"localhost"}
 	}
 	cmd := exec.Command(testCmd, testArgs...)
 	err := cmd.Start()
@@ -121,7 +121,7 @@ func TestProcessIsRunning_DetectsNotRunning(t *testing.T) {
 		testArgs = []string{"-n", "1000", "localhost"}
 	} else {
 		testCmd = "ping"
-		testArgs = []string{}
+		testArgs = []string{"localhost"}
 	}
 	cmd := exec.Command(testCmd, testArgs...)
 	err := cmd.Start()
