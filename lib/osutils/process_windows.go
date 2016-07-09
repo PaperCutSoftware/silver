@@ -56,22 +56,21 @@ func processSignalQuit(pid int) error {
 }
 
 func openProcessHandle(pid int) (syscall.Handle, error) {
-	const da = syscall.STANDARD_RIGHTS_READ | syscall.PROCESS_QUERY_INFORMATION |
-		syscall.SYNCHRONIZE | syscall.PROCESS_TERMINATE
+	const da = syscall.STANDARD_RIGHTS_READ |
+		syscall.PROCESS_QUERY_INFORMATION |
+		syscall.SYNCHRONIZE |
+		syscall.PROCESS_TERMINATE
 	return syscall.OpenProcess(da, false, uint32(pid))
 }
 
 // Used to nicely quit console applications
 func sendCtrlBreak(pid int) error {
-	d, err := syscall.LoadDLL("kernel32.dll")
-	if err != nil {
-		return err
+	kernel32 := syscall.NewLazyDLL("kernel32.dll")
+	procGenerateConsoleCtrlEvent := kernel32.NewProc("GenerateConsoleCtrlEvent")
+	r, _, _ := procGenerateConsoleCtrlEvent.Call(syscall.CTRL_BREAK_EVENT, uintptr(pid))
+	if r == 0 {
+		fmt.Errorf("Error calling GenerateConsoleCtrlEvent")
 	}
-	p, err := d.FindProc("GenerateConsoleCtrlEvent")
-	if err != nil {
-		return err
-	}
-	p.Call(syscall.CTRL_BREAK_EVENT, uintptr(pid))
 	return nil
 }
 
@@ -86,7 +85,8 @@ func sendWMQuit(pid int) error {
 		pid := int(lparam)
 		// Does the window belong to our PID?
 		var windowPID int
-		procGetWindowThreadProcessId.Call(uintptr(hwnd), uintptr(unsafe.Pointer(&windowPID)))
+		procGetWindowThreadProcessId.Call(uintptr(hwnd), 
+			uintptr(unsafe.Pointer(&windowPID)))
 		if windowPID == pid {
 			const WM_CLOSE = 16
 			procPostMessage.Call(uintptr(hwnd), uintptr(WM_CLOSE), 0, 0)

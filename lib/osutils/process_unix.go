@@ -4,6 +4,7 @@
 // Use of this source code is governed by an MIT or GPL Version 2 license.
 // See the project's LICENSE file for more information.
 //
+// +build darwin dragonfly freebsd linux nacl netbsd openbsd solaris
 
 package osutils
 

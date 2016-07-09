@@ -70,11 +70,11 @@ func testProcessKillGracefully(command string, args []string, t *testing.T) {
 
 	// Assert time killed within 1 second
 	if duration > 1*time.Second {
-		t.Error("Expected kill to return quicker!")
+		t.Errorf("Expected kill to return quicker!")
 	}
 	// Assert time killed larger than 500 ms
 	if duration < 500*time.Millisecond {
-		t.Error("Expected it to take > 500 ms due to check!")
+		t.Errorf("Expected it to take > 500 ms due to check!")
 	}
 }
 
