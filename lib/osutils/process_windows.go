@@ -93,7 +93,7 @@ func sendWMQuit(pid int) error {
 		}
 		return 1 // continue enumeration
 	})
-	ret, _, _ := procEnumWindows.Call(quitCallback, uintptr(unsafe.Pointer(&pid)))
+	ret, _, _ := procEnumWindows.Call(quitCallback, uintptr(pid))
 	if ret == 0 {
 		return fmt.Errorf("Error called EnumWindows")
 	}

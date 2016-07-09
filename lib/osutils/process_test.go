@@ -45,8 +45,9 @@ func Test_ProcessKillGracefully_GUIProgram(t *testing.T) {
 func testProcessKillGracefully(command string, args []string, t *testing.T) {
 	t.Logf("Starting %v %v", command, args)
 	cmd := exec.Command(command, args...)
-	start := time.Now()
 	err := cmd.Start()
+	// Give time for notepad to open
+	time.Sleep(1*time.Second)
 	if err != nil {
 		t.Fatalf("Error starting test cmd: %v", cmd)
 	}
@@ -54,6 +55,7 @@ func testProcessKillGracefully(command string, args []string, t *testing.T) {
 		err := cmd.Wait()
 		t.Logf("Cmd complete with error: %v", err)
 	}()
+	start := time.Now()
 
 	// Act
 	err = osutils.ProcessKillGracefully(cmd.Process.Pid, 5*time.Second)
