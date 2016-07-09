@@ -9,6 +9,8 @@ package osutils
 
 import "time"
 
+// ProcessKillGracefully kills a process gracefully allowing maxTime before
+// a hard kill is issued.
 func ProcessKillGracefully(pid int, maxTime time.Duration) error {
 	const checkPeriod = 500 * time.Millisecond
 	end := time.Now().Add(maxTime)
@@ -39,14 +41,18 @@ func ProcessKillGracefully(pid int, maxTime time.Duration) error {
 	return ProcessKillHard(pid)
 }
 
+// ProcessIsRunning tests to see if a process with PID is running.
 func ProcessIsRunning(pid int) (bool, error) {
 	return processIsRunning(pid)
 }
 
+// ProcessKillHard Hard kills a process (SIGKILL on Unix and TerminateProcess on Windows)
 func ProcessKillHard(pid int) error {
 	return processKillHard(pid)
 }
 
+// ProcessSignalQuit instructs a process to cleanly exist (SIGTERM/SIGINT on Unix
+// and Control-C or WM_QUIT on Windows)
 func ProcessSignalQuit(pid int) error {
 	return processSignalQuit(pid)
 }
