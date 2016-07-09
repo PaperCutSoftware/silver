@@ -136,6 +136,7 @@ func RunWithMonitor(c *RunConfig, terminate chan struct{}) (exitCode int, err er
 			}
 		}
 	}
+	time.Sleep(3 * time.Second)
 	c.Logger.Printf("%s: Stopped (exit code: %d)", c.name(), exitCode)
 	return exitCode, nil
 }
@@ -153,7 +154,7 @@ func terminateOnRequest(c *RunConfig, p *procInfo, terminate chan struct{}) {
 	select {
 	case <-terminate:
 		c.Logger.Printf("%s: Stopping...", c.name())
-		if !terminateProcess(p.process, c.GracefulShutdownTimeoutSecs) {
+		if err := terminateProcess(p.process, c.GracefulShutdownTimeoutSecs); err != nil {
 			c.Logger.Printf("%s: WARNING: Process not gracefully exit", c.name())
 		}
 	case <-p.status:

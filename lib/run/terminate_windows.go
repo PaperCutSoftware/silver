@@ -16,40 +16,62 @@ import (
 	"time"
 )
 
-func terminateProcess(process *os.Process, gracefulTimeoutSecs int) bool {
+func terminateProcess(process *os.Process, gracefulTimeoutSecs int) error {
+	const checkPeriod = 500 * time.Millisecond
+	graceful := time.Now().Add(time.Second * time.Duration(gracefulTimeoutSecs))
+
 	pid := process.Pid
 
 	// In Windows we'll send a Ctrl Break and also use taskkill.exe just in case it's a
 	// wmain Windows program.
-	sendCtrlBreak(pid)
+	if err := sendCtrlBreak(pid); err != nil {
+		return err
+	}
+	// TODO - error?
 	sendTaskKill(pid)
 
 	stillRunning := true
-	for i := 0; i < gracefulTimeoutSecs; i++ {
+	for {
+		time.Sleep(checkPeriod)
 		if p, _ := os.FindProcess(pid); p == nil {
 			stillRunning = false
 			break
 		}
-		time.Sleep(1 * time.Second)
+		if time.Now().After(graceful) {
+			break
+		}
+		fmt.Printf("Here! %v\n", time.Now())
 	}
 	// Done our best... hard kill
 	if stillRunning {
 		process.Kill()
-		return false
+		for {
+			time.Sleep(checkPeriod)
+			fmt.Printf("TEMP checking...")
+			if p, _ := os.FindProcess(pid); p != nil {
+				fmt.Printf("Ending Unable to kill %v\n", p)
+			}
+		}
+		time.Sleep(checkPeriod)
+		if p, _ := os.FindProcess(pid); p != nil {
+			return fmt.Errorf("Unable to kill process. PID: %v", pid)
+		}
 	}
-	return true
+	fmt.Printf("Ending! %v\n", time.Now())
+	return nil
 }
 
-func sendCtrlBreak(pid int) {
-	d, e := syscall.LoadDLL("kernel32.dll")
-	if e != nil {
-		return
+func sendCtrlBreak(pid int) error {
+	d, err := syscall.LoadDLL("kernel32.dll")
+	if err != nil {
+		return err
 	}
-	p, e := d.FindProc("GenerateConsoleCtrlEvent")
-	if e != nil {
-		return
+	p, err := d.FindProc("GenerateConsoleCtrlEvent")
+	if err != nil {
+		return err
 	}
 	p.Call(syscall.CTRL_BREAK_EVENT, uintptr(pid))
+	return nil
 }
 
 func sendTaskKill(pid int) {

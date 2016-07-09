@@ -57,6 +57,52 @@ func Test_RunCommand_WithGUIProgram(t *testing.T) {
 	}
 }
 
+func Test_RunCommand_WithCMDProgram(t *testing.T) {
+
+	// Arrange
+	const terminateAfter = 2 * time.Second
+
+	c := &CommandConfig{
+		RunConfig: RunConfig{
+			Path: `c:\Windows\System32\ping.exe`,
+			Args: []string{"-n", "1000", "localhost"},
+			GracefulShutdownTimeoutSecs: 2,
+		},
+	}
+
+	// Skip if we can't find notepad.
+	if _, err := os.Stat(c.Path); err != nil {
+		t.Skip("Skipping RunCommand_WithCMDProgram because ping.exe does not exist")
+	}
+	startingTime := time.Now().UTC()
+
+	terminate := make(chan struct{})
+	go func() {
+		time.Sleep(terminateAfter)
+		close(terminate)
+	}()
+
+	// Act
+	_, err := RunCommand(c, terminate)
+
+	// Assert no error
+	if err != nil {
+		t.Errorf("PING did not exit cleanly: %v", err)
+	}
+
+	// Assert time
+	endingTime := time.Now().UTC()
+	duration := endingTime.Sub(startingTime)
+
+	if duration < terminateAfter {
+		t.Error("Command run quicker than expected!")
+	}
+	const threadhold = 500 * time.Millisecond
+	if duration > terminateAfter+threadhold {
+		t.Error("Terminate took longer than expected! Took: %v", duration)
+	}
+}
+
 func TestRunCommandSimple(t *testing.T) {
 
 	const timeout = 10

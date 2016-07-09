@@ -7,9 +7,7 @@
 
 package run
 
-import (
-	"time"
-)
+import "time"
 
 type CommandConfig struct {
 	RunConfig
