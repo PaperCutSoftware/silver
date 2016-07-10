@@ -24,6 +24,11 @@ func processKillHard(pid int) error {
 	return sendSignal(pid, os.Kill)
 }
 
+func processSysProcAttrForQuit() *syscall.SysProcAttr {
+	// noop for Unix - only required for Windows
+	return nil
+}
+
 func processSignalQuit(pid int) error {
 	err1 := sendSignal(pid, os.Interrupt)
 	err2 := sendSignal(pid, syscall.SIGTERM)

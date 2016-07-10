@@ -8,47 +8,37 @@
 package osutils_test
 
 import (
+	"io/ioutil"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"runtime"
 	"testing"
 	"time"
-	"syscall"
 
 	"github.com/papercutsoftware/silver/lib/osutils"
 )
 
 func Test_ProcessKillGracefully_ConsoleProgram(t *testing.T) {
-	var testCmd string
-	var testArgs []string
-	if runtime.GOOS == "windows" {
-		testCmd = `c:\Windows\System32\msg.exe`
-		testArgs = []string{"*"}
-	} else {
-		testCmd = "ping"
-		testArgs = []string{"localhost"}
-	}
-	testProcessKillGracefully(testCmd, testArgs, t)
+	tmpDir, testExe := makeTestCommand(t)
+	defer cleanupTestCommand(t, tmpDir)
+	testProcessKillGracefully(testExe, t)
 }
 
 func Test_ProcessKillGracefully_GUIProgram(t *testing.T) {
 	var testCmd string
-	var testArgs []string
 	if runtime.GOOS == "windows" {
 		testCmd = `c:\Windows\notepad.exe`
-		testArgs = []string{}
 	} else {
 		testCmd = "/sbin/ping"
-		testArgs = []string{"localhost"}
 	}
-	testProcessKillGracefully(testCmd, testArgs, t)
+	testProcessKillGracefully(testCmd, t)
 }
 
-func testProcessKillGracefully(command string, args []string, t *testing.T) {
-	t.Logf("Starting %v %v", command, args)
-	cmd := exec.Command(command, args...)
-	cmd.SysProcAttr = &syscall.SysProcAttr{
-		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
-	}
+func testProcessKillGracefully(command string, t *testing.T) {
+	t.Logf("Starting %v", command)
+	cmd := exec.Command(command)
+	cmd.SysProcAttr = osutils.ProcessSysProcAttrForQuit()
 	err := cmd.Start()
 	// Give time to open
 	time.Sleep(1 * time.Second)
@@ -84,16 +74,10 @@ func testProcessKillGracefully(command string, args []string, t *testing.T) {
 
 func TestProcessIsRunning_DetectsRunning(t *testing.T) {
 	// Arrange
-	var testCmd string
-	var testArgs []string
-	if runtime.GOOS == "windows" {
-		testCmd = `c:\Windows\System32\ping.exe`
-		testArgs = []string{"-n", "1000", "localhost"}
-	} else {
-		testCmd = "ping"
-		testArgs = []string{"localhost"}
-	}
-	cmd := exec.Command(testCmd, testArgs...)
+	tmpDir, testExe := makeTestCommand(t)
+	defer cleanupTestCommand(t, tmpDir)
+	cmd := exec.Command(testExe)
+
 	err := cmd.Start()
 	if err != nil {
 		t.Fatalf("Error starting test cmd: %v", cmd)
@@ -114,20 +98,15 @@ func TestProcessIsRunning_DetectsRunning(t *testing.T) {
 	}
 
 	cmd.Process.Kill()
+	cmd.Wait()
 }
 
 func TestProcessIsRunning_DetectsNotRunning(t *testing.T) {
 	// Arrange
-	var testCmd string
-	var testArgs []string
-	if runtime.GOOS == "windows" {
-		testCmd = `c:\Windows\System32\ping.exe`
-		testArgs = []string{"-n", "1000", "localhost"}
-	} else {
-		testCmd = "ping"
-		testArgs = []string{"localhost"}
-	}
-	cmd := exec.Command(testCmd, testArgs...)
+	tmpDir, testExe := makeTestCommand(t)
+	defer cleanupTestCommand(t, tmpDir)
+
+	cmd := exec.Command(testExe)
 	err := cmd.Start()
 	if err != nil {
 		t.Fatalf("Error starting test cmd: %v", cmd)
@@ -148,5 +127,61 @@ func TestProcessIsRunning_DetectsNotRunning(t *testing.T) {
 	}
 	if running {
 		t.Errorf("Expected process at pid %d NOT to be running", pid)
+	}
+}
+
+func makeTestCommand(t *testing.T) (tmpDir, testExe string) {
+	// create source file
+	const testSource = `
+package main
+
+import (
+	"log"
+	"os"
+	"os/signal"
+	"time"
+)
+
+func main() {
+	c := make(chan os.Signal, 10)
+	signal.Notify(c)
+	select {
+	case s := <-c:
+		if s != os.Interrupt {
+			log.Fatalf("Wrong signal received: got %q, want %q\n", s, os.Interrupt)
+		}
+	case <-time.After(3 * time.Second):
+		log.Fatalf("Timeout waiting for signal (e.g. Ctrl-Break)\n")
+	}
+}
+`
+	tmpDir, err := ioutil.TempDir("", "TestSigProcess")
+	if err != nil {
+		t.Fatal("TempDir failed: ", err)
+	}
+
+	// write sigprocess.go
+	name := filepath.Join(tmpDir, "sigprocess")
+	src := name + ".go"
+	f, err := os.Create(src)
+	if err != nil {
+		t.Fatalf("Failed to create %v: %v", src, err)
+	}
+	f.Write([]byte(testSource))
+	f.Close()
+
+	// compile it
+	exe := name + ".exe"
+	o, err := exec.Command("go", "build", "-o", exe, src).CombinedOutput()
+	if err != nil {
+		t.Fatalf("Failed to compile: %v\n%v", err, string(o))
+	}
+	return tmpDir, exe
+}
+
+func cleanupTestCommand(t *testing.T, tmpDir string) {
+	err := os.RemoveAll(tmpDir)
+	if err != nil {
+		t.Errorf("Unable to cleanup: %v", err)
 	}
 }

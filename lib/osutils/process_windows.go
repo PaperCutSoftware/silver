@@ -55,6 +55,12 @@ func processSignalQuit(pid int) error {
 	return nil
 }
 
+func processSysProcAttrForQuit() *syscall.SysProcAttr {
+	return &syscall.SysProcAttr{
+		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
+	}
+}
+
 func openProcessHandle(pid int) (syscall.Handle, error) {
 	const da = syscall.STANDARD_RIGHTS_READ |
 		syscall.PROCESS_QUERY_INFORMATION |
@@ -85,7 +91,7 @@ func sendWMQuit(pid int) error {
 		pid := int(lparam)
 		// Does the window belong to our PID?
 		var windowPID int
-		procGetWindowThreadProcessId.Call(uintptr(hwnd), 
+		procGetWindowThreadProcessId.Call(uintptr(hwnd),
 			uintptr(unsafe.Pointer(&windowPID)))
 		if windowPID == pid {
 			const WM_CLOSE = 16

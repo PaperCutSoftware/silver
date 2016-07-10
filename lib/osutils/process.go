@@ -8,6 +8,7 @@
 package osutils
 
 import (
+	"syscall"
 	"time"
 )
 
@@ -45,6 +46,13 @@ func ProcessKillGracefully(pid int, maxTime time.Duration) error {
 	return ProcessKillHard(pid)
 }
 
+// ProcessSysProcAttrForQuit returns a SysProcAttr suitable to set either
+// cmd.SysProcAttr or os.StartProcess. At the current time is only is required
+// for Windows to ensure a new process group is created.  It's nil on Unix.
+func ProcessSysProcAttrForQuit() *syscall.SysProcAttr {
+	return processSysProcAttrForQuit()
+}
+
 // ProcessIsRunning tests to see if a process with PID is running.
 func ProcessIsRunning(pid int) (bool, error) {
 	return processIsRunning(pid)
@@ -59,9 +67,6 @@ func ProcessKillHard(pid int) error {
 // and Control-C or WM_QUIT on Windows)
 //
 // IMPORTANT: On Windows processes started form Go must be in their own process group.
-// cmd.SysProcAttr = &syscall.SysProcAttr{
-//	CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
-// }
 func ProcessSignalQuit(pid int) error {
 	return processSignalQuit(pid)
 }
