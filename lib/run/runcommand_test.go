@@ -57,55 +57,40 @@ func Test_RunCommand_WithGUIProgram(t *testing.T) {
 	}
 }
 
-func Test_RunCommand_WithCMDProgram(t *testing.T) {
-
+func TestRunCommandSimpleWithGracefulShutdown(t *testing.T) {
 	// Arrange
-	const terminateAfter = 2 * time.Second
+	const timeout = 1 * time.Second
 
-	c := &CommandConfig{
-		RunConfig: RunConfig{
-			Path: `c:\Windows\System32\ping.exe`,
-			Args: []string{"-n", "1000", "localhost"},
-			GracefulShutdownTimeoutSecs: 2,
-		},
-	}
-
-	// Skip if we can't find notepad.
-	if _, err := os.Stat(c.Path); err != nil {
-		t.Skip("Skipping RunCommand_WithCMDProgram because ping.exe does not exist")
-	}
-	startingTime := time.Now().UTC()
+	c := new(CommandConfig)
+	c.Path = os.Args[0]
+	c.Args = helperArgs("work-before-exit", "1")
 
 	terminate := make(chan struct{})
 	go func() {
-		time.Sleep(terminateAfter)
+		time.Sleep(timeout)
 		close(terminate)
 	}()
 
-	// Act
-	_, err := RunCommand(c, terminate)
-
-	// Assert no error
+	startingTime := time.Now()
+	exitCode, err := RunCommand(c, terminate)
 	if err != nil {
-		t.Errorf("PING did not exit cleanly: %v", err)
+		t.Errorf("Command did not exit cleanly: %v", err)
 	}
+	if exitCode != 0 {
+		t.Errorf("Unexpected exit code: %d", exitCode)
+	}
+	endingTime := time.Now()
 
-	// Assert time
-	endingTime := time.Now().UTC()
 	duration := endingTime.Sub(startingTime)
 
-	if duration < terminateAfter {
-		t.Error("Command run quicker than expected!")
-	}
-	const threadhold = 500 * time.Millisecond
-	if duration > terminateAfter+threadhold {
-		t.Error("Terminate took longer than expected! Took: %v", duration)
+	maxExpected := 3 * time.Second
+	if duration >= maxExpected {
+		t.Error("Expected command to shut down quicker! Took: %v", duration)
 	}
 }
 
 func TestRunCommandSimple(t *testing.T) {
-
-	const timeout = 10
+	const timeout = 10 * time.Second
 
 	c := new(CommandConfig)
 	c.Path = os.Args[0]
@@ -113,7 +98,7 @@ func TestRunCommandSimple(t *testing.T) {
 
 	terminate := make(chan struct{})
 	go func() {
-		time.Sleep(timeout * time.Second)
+		time.Sleep(timeout)
 		close(terminate)
 	}()
 
@@ -129,7 +114,7 @@ func TestRunCommandSimple(t *testing.T) {
 
 	duration := endingTime.Sub(startingTime)
 
-	if duration >= time.Duration(timeout*time.Second) {
+	if duration >= timeout {
 		t.Error("Command timed out!")
 	}
 }

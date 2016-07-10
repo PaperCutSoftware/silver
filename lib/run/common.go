@@ -20,6 +20,7 @@ import (
 
 	// FIXME: Get rid of this dependency - use a message channel
 	"github.com/papercutsoftware/silver/lib/logging"
+	"github.com/papercutsoftware/silver/lib/osutils"
 )
 
 const (
@@ -47,16 +48,9 @@ func (c *RunConfig) name() string {
 	return filepath.Base(c.Path)
 }
 
-type procInfo struct {
-	process *os.Process
-	status  chan struct{}
-}
-
 func RunWithMonitor(c *RunConfig, terminate chan struct{}) (exitCode int, err error) {
 
 	setupRunConfigDefaults(c)
-
-	procInfo := procInfo{}
 
 	c.Logger.Printf("%s: Starting '%s' %v", c.name(), c.Path, c.Args)
 	cmd := exec.Command(c.Path, c.Args...)
@@ -83,17 +77,12 @@ func RunWithMonitor(c *RunConfig, terminate chan struct{}) (exitCode int, err er
 		}
 	}
 
-	// Set up a process status channel - closed when process exits
-	procInfo.status = make(chan struct{})
-	defer close(procInfo.status)
-
-	// This is required to control brake works on Windows
-	setProcAttributes(cmd)
+	// This is required so CTRL-BREAK works on Windows
+	cmd.SysProcAttr = osutils.ProcessSysProcAttrForQuit()
 
 	if err := cmd.Start(); err != nil {
 		return 255, err
 	}
-	procInfo.process = cmd.Process
 
 	c.Logger.Printf("%s: Started (pid: %d)", c.name(), cmd.Process.Pid)
 
@@ -125,7 +114,15 @@ func RunWithMonitor(c *RunConfig, terminate chan struct{}) (exitCode int, err er
 
 	// Terminate managament
 	if terminate != nil {
-		go terminateOnRequest(c, &procInfo, terminate)
+		go func() {
+			<-terminate
+			c.Logger.Printf("%s: Stopping...", c.name())
+			maxTime := time.Duration(c.GracefulShutdownTimeoutSecs) * time.Second
+			err := osutils.ProcessKillGracefully(cmd.Process.Pid, maxTime)
+			if err != nil {
+				c.Logger.Printf("%s: WARNING: Process not gracefully exit", c.name())
+			}
+		}()
 	}
 
 	exitCode = 0
@@ -136,7 +133,6 @@ func RunWithMonitor(c *RunConfig, terminate chan struct{}) (exitCode int, err er
 			}
 		}
 	}
-	time.Sleep(3 * time.Second)
 	c.Logger.Printf("%s: Stopped (exit code: %d)", c.name(), exitCode)
 	return exitCode, nil
 }
@@ -147,18 +143,6 @@ func setupRunConfigDefaults(c *RunConfig) {
 	}
 	if c.Logger == nil {
 		c.Logger = logging.NewNilLogger()
-	}
-}
-
-func terminateOnRequest(c *RunConfig, p *procInfo, terminate chan struct{}) {
-	select {
-	case <-terminate:
-		c.Logger.Printf("%s: Stopping...", c.name())
-		if err := terminateProcess(p.process, c.GracefulShutdownTimeoutSecs); err != nil {
-			c.Logger.Printf("%s: WARNING: Process not gracefully exit", c.name())
-		}
-	case <-p.status:
-		break
 	}
 }
 
