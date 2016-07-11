@@ -144,7 +144,7 @@ func execCommand() {
 	var cmd *config.Command
 	for _, c := range conf.Commands {
 		if c.Name == requestedCmd {
-			cmd = c
+			cmd = &c
 			break
 		}
 	}
@@ -155,8 +155,8 @@ func execCommand() {
 			fmt.Fprintf(os.Stderr, "There are no commands configured!\n")
 		} else {
 			fmt.Fprintf(os.Stderr, "Valid commands are:\n")
-			for _, cmd = range conf.Commands {
-				fmt.Fprintf(os.Stderr, "    %s\n", cmd.Name)
+			for _, validCmd := range conf.Commands {
+				fmt.Fprintf(os.Stderr, "    %s\n", validCmd.Name)
 			}
 		}
 		os.Exit(1)
@@ -269,7 +269,7 @@ func watchForReload() {
 
 func execStartupTasks() {
 	for _, task := range conf.StartupTasks {
-		runTask := func(task *config.StartupTask) {
+		runTask := func(task config.StartupTask) {
 			defer done.Done()
 			done.Add(1)
 
@@ -298,7 +298,7 @@ func execStartupTasks() {
 
 func startServices() {
 	for _, service := range conf.Services {
-		go func(service *config.Service) {
+		go func(service config.Service) {
 			defer done.Done()
 			done.Add(1)
 

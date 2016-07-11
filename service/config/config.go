@@ -15,12 +15,13 @@ import (
 )
 
 type Config struct {
-	ServiceDescription *ServiceDescription
-	ServiceConfig      *ServiceConfig
-	Services           []*Service
-	StartupTasks       []*StartupTask
-	ScheduledTasks     []*ScheduledTask
-	Commands           []*Command
+	ServiceDescription ServiceDescription
+	ServiceConfig      ServiceConfig
+	Include            []string
+	Services           []Service
+	StartupTasks       []StartupTask
+	ScheduledTasks     []ScheduledTask
+	Commands           []Command
 }
 
 type ServiceDescription struct {
@@ -88,20 +89,34 @@ type ReplacementVars struct {
 }
 
 // LoadConfig parses config.
-func LoadConfig(path string, vars ReplacementVars) (config *Config, err error) {
+func LoadConfig(path string, vars ReplacementVars) (conf *Config, err error) {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return nil, fmt.Errorf("The conf file does not exist. Please configuration here: %s", path)
 	}
 	return load(path, vars)
 }
 
-func load(path string, vars ReplacementVars) (config *Config, err error) {
+// Merge in an include file.  Include files can contain services, tasks and commands
+func MergeInclude(conf Config, path string, vars ReplacementVars) (*Config, error) {
+	include, err := load(path, vars)
+	if err != nil {
+		return &conf, err
+	}
+
+	conf.Services = append(conf.Services, include.Services...)
+	conf.StartupTasks = append(conf.StartupTasks, include.StartupTasks...)
+	conf.ScheduledTasks = append(conf.ScheduledTasks, include.ScheduledTasks...)
+	conf.Commands = append(conf.Commands, include.Commands...)
+	return &conf, nil
+}
+
+func load(path string, vars ReplacementVars) (conf *Config, err error) {
 	s, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
 
-	err = json.Unmarshal(s, &config)
+	err = json.Unmarshal(s, &conf)
 	if err != nil {
 		return nil, err
 	}
@@ -112,19 +127,12 @@ func load(path string, vars ReplacementVars) (config *Config, err error) {
 	}
 	s = []byte(replaceVars(string(s), replacments))
 
-	err = json.Unmarshal(s, &config)
+	err = json.Unmarshal(s, &conf)
 	if err != nil {
 		return nil, err
 	}
 
-	if config.ServiceConfig == nil {
-		config.ServiceConfig = new(ServiceConfig)
-	}
-	if config.ServiceDescription == nil {
-		config.ServiceDescription = new(ServiceDescription)
-	}
-
-	return config, nil
+	return conf, nil
 }
 
 func replaceVars(in string, replacements map[string]string) (out string) {

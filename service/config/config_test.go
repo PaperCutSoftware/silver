@@ -37,6 +37,10 @@ func TestLocadConfig_ValidConfig(t *testing.T) {
             "LogFile" : "${ServiceName}.log",
             "PidFile" : "${ServiceName}.pid"
         },
+		"Include" : [
+			"${ServiceRoot}/v*/include.conf",
+			"${ServiceRoot}/other-v*/other.conf"
+		],
         "Services" : [
             {
                 "Path" : "test/path/1",
@@ -120,6 +124,10 @@ func TestLocadConfig_ValidConfig(t *testing.T) {
 		t.Errorf("Variable replaement did not happen")
 	}
 
+	if !strings.Contains(c.Include[0], "include.conf") {
+		t.Errorf("Expected include")
+	}
+
 	if c.Services[0].Path != "test/path/1" {
 		t.Errorf("Problem extracting path")
 	}
@@ -143,7 +151,42 @@ func TestLocadConfig_ValidConfig(t *testing.T) {
 
 }
 
-func TestLoadConfig_IncompleteConfig(t *testing.T) {
+func TestLoadConfig_MinimalConfig(t *testing.T) {
+	// Arrange
+	testConfig := `
+    {
+        "ServiceDescription" : {
+            "DisplayName" : "My Service",
+            "Description" : "My Service Desc"
+        },
+        "Services" : [
+            {
+                "Path" : "test/path/1"
+            }
+        ]
+    }`
+	tmpFile := writeTestConfig(t, testConfig)
+	defer os.Remove(tmpFile)
+
+	vars := config.ReplacementVars{
+		ServiceName: "MyServiceName",
+		ServiceRoot: `C:\ProgramFiles\MyService`,
+	}
+
+	// Act
+	c, err := config.LoadConfig(tmpFile, vars)
+
+	// Assert
+	if err != nil {
+		t.Errorf("Error loading config: %v", err)
+	}
+
+	if c.Services[0].Path != "test/path/1" {
+		t.Errorf("Problem extracting path")
+	}
+}
+
+func TestLoadConfig_IncompleteConfig_ShouldError(t *testing.T) {
 	// Arrange
 	testConfig := `
     {
@@ -190,7 +233,49 @@ func TestLoadConfig_IncompleteConfig(t *testing.T) {
 	if len(c.Commands) != 0 {
 		t.Error("Expected zero commands")
 	}
+}
 
+func TestMergeInclude_ValidInclude(t *testing.T) {
+	// Arrange
+	baseConfig := `
+    {
+        "ServiceDescription" : {
+            "DisplayName" : "My Service",
+            "Description" : "My Service Desc"
+        },
+		"Include" : ["${ServiceRoot}/v*/service.conf"]
+    }`
+	baseFile := writeTestConfig(t, baseConfig)
+	defer os.Remove(baseFile)
+
+	vars := config.ReplacementVars{
+		ServiceName: "MyServiceName",
+		ServiceRoot: `C:\ProgramFiles\MyService`,
+	}
+	baseConf, err := config.LoadConfig(baseFile, vars)
+
+	includeConfig := `
+    {
+        "Services" : [
+            {
+                "Path" : "test/path/from-include"
+            }
+        ]
+    }`
+	incFile := writeTestConfig(t, includeConfig)
+	defer os.Remove(incFile)
+
+	// Act
+	baseConf, err = config.MergeInclude(*baseConf, incFile, vars)
+
+	// Assert
+	if err != nil {
+		t.Errorf("Error loading config: %v", err)
+	}
+
+	if baseConf.Services[0].Path != "test/path/from-include" {
+		t.Errorf("Problem extracting path")
+	}
 }
 
 func writeTestConfig(t *testing.T, config string) string {
