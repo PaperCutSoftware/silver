@@ -7,6 +7,9 @@ import (
 	"os/exec"
 	"syscall"
 	"time"
+
+	"github.com/papercutsoftware/silver/lib/osutils"
+	"fmt"
 )
 
 var (
@@ -31,15 +34,16 @@ type ExecConfig struct {
 	StartupDelay       time.Duration
 	StartupRandomDelay time.Duration
 	ExecTimeout        time.Duration
+	GracefulShutDown   time.Duration
 }
 
 type executable struct {
-	cmd *exec.Cmd
+	cmd              *exec.Cmd
+	gracefulShutdown time.Duration
 }
 
 func (c executable) Execute(terminate chan struct{}) (exitCode int, err error) {
-	setProcAttributes(c.cmd)
-	// c.cmd.SysProcAttr = osutils.ProcessSysProcAttriForQuit()
+	c.cmd.SysProcAttr = osutils.ProcessSysProcAttrForQuit()
 	if err := c.cmd.Start(); err != nil {
 		return 255, err
 	}
@@ -48,8 +52,10 @@ func (c executable) Execute(terminate chan struct{}) (exitCode int, err error) {
 	go func() {
 		select {
 		case <-terminate:
-			c.cmd.Process.Kill()
-			//_ := osutils.ProcessKillGracefully(c.cmd.Process.Pid)
+			// TODO: log error
+			fmt.Println("pid: %d", c.cmd.Process.Pid)
+			err = osutils.ProcessKillGracefully(c.cmd.Process.Pid, c.gracefulShutdown)
+			fmt.Printf("err: %#v", err)
 		case <-complete:
 			return
 		}
@@ -104,7 +110,7 @@ func (tc timeoutExecutable) Execute(terminate chan struct{}) (exitCode int, err 
 
 func NewExecutable(execConf ExecConfig) Executable {
 	var silverExec Executable
-	silverExec = executable{cmd: setupLogging(execConf)}
+	silverExec = executable{cmd: setupLogging(execConf), gracefulShutdown:execConf.GracefulShutDown}
 	if isStartupDelayedCmd(execConf) {
 		silverExec = startupDelayedExecutable{
 			wrappedCmd:         silverExec,
