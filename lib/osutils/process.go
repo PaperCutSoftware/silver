@@ -66,7 +66,7 @@ func ProcessKillHard(pid int) error {
 // ProcessSignalQuit instructs a process to cleanly exist (SIGTERM/SIGINT on Unix
 // and Control-C or WM_QUIT on Windows)
 //
-// IMPORTANT: On Windows processes started form Go must be in their own process group.
+// IMPORTANT: On Windows processes started from Go must be in their own process group.
 func ProcessSignalQuit(pid int) error {
 	return processSignalQuit(pid)
 }
