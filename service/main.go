@@ -57,7 +57,7 @@ func main() {
 		fmt.Printf("Usage:\n")
 		fmt.Printf("%s [install|uninstall|start|stop|command|validate|run|help] [command-name]\n", exeName())
 		fmt.Printf("  install   - Install the service.\n")
-		fmt.Printf("  uninstall    - Remove/uninstall the service.\n")
+		fmt.Printf("  uninstall - Remove/uninstall the service.\n")
 		fmt.Printf("  start     - Start an installed service.\n")
 		fmt.Printf("  stop      - Stop an installed service.\n")
 		fmt.Printf("  validate  - Test the configuration file.\n")
@@ -133,7 +133,19 @@ func loadConf() (conf *config.Config, err error) {
 		ServiceName: serviceName(),
 		ServiceRoot: exeFolder(),
 	}
-	return config.LoadConfig(confPath, vars)
+	conf, err = config.LoadConfig(confPath, vars)
+	if err != nil {
+		return nil, err
+	}
+
+	// Merge in any include files
+	for _, include := range conf.Include {
+		conf, err = config.MergeInclude(*conf, include, vars)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return conf, err
 }
 
 func execCommand() {
