@@ -1,18 +1,16 @@
 // SILVER - Service Wrapper
 //
-// Copyright (c) 2014 PaperCut Software http://www.papercut.com/
+// Copyright (c) 2014-2016 PaperCut Software http://www.papercut.com/
 // Use of this source code is governed by an MIT or GPL Version 2 license.
 // See the project's LICENSE file for more information.
 //
-package main
+package config
 
 import (
 	"encoding/json"
-	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path/filepath"
 	"strings"
 )
 
@@ -84,28 +82,21 @@ type Command struct {
 	TimeoutSecs int
 }
 
-func LoadConfig() (config *Config, err error) {
-	f := getConfigFilePath()
-	if _, err := os.Stat(f); os.IsNotExist(err) {
-		msg := fmt.Sprintf("The conf file does not exist. "+
-			"Place configuration here: %s", f)
-		return nil, errors.New(msg)
-	}
-	return loadConfigFromFile(f)
+type ReplacementVars struct {
+	ServiceName string
+	ServiceRoot string
 }
 
-func getConfigFilePath() string {
-	exePath := exePath()
-	extension := filepath.Ext(exePath)
-	if strings.ToLower(extension) == ".exe" {
-		return exePath[0:len(exePath)-4] + ".conf"
+// LoadConfig parses config.
+func LoadConfig(path string, vars ReplacementVars) (config *Config, err error) {
+	if _, err := os.Stat(path); os.IsNotExist(err) {
+		return nil, fmt.Errorf("The conf file does not exist. Please configuration here: %s", path)
 	}
-	return exePath + ".conf"
+	return load(path, vars)
 }
 
-func loadConfigFromFile(configFile string) (config *Config, err error) {
-
-	s, err := ioutil.ReadFile(configFile)
+func load(path string, vars ReplacementVars) (config *Config, err error) {
+	s, err := ioutil.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}
@@ -115,14 +106,9 @@ func loadConfigFromFile(configFile string) (config *Config, err error) {
 		return nil, err
 	}
 
-	// We've parsed once to extract 'ServiceName'.  Now replace and
-	// parse again.
-	serviceName := serviceName()
-	serviceRoot := exeFolder()
-
 	replacments := map[string]string{
-		"${ServiceName}": jsonEscapeString(serviceName),
-		"${ServiceRoot}": jsonEscapeString(serviceRoot),
+		"${ServiceName}": jsonEscapeString(vars.ServiceName),
+		"${ServiceRoot}": jsonEscapeString(vars.ServiceRoot),
 	}
 	s = []byte(replaceVars(string(s), replacments))
 
@@ -131,7 +117,6 @@ func loadConfigFromFile(configFile string) (config *Config, err error) {
 		return nil, err
 	}
 
-	// Validate
 	if config.ServiceConfig == nil {
 		config.ServiceConfig = new(ServiceConfig)
 	}

@@ -1,54 +1,31 @@
 // SILVER - Service Wrapper
 //
-// Copyright (c) 2014 PaperCut Software http://www.papercut.com/
+// Copyright (c) 2014-2016 PaperCut Software http://www.papercut.com/
 // Use of this source code is governed by an MIT or GPL Version 2 license.
 // See the project's LICENSE file for more information.
 //
-package main
+package config_test
 
 import (
 	"fmt"
 	"io/ioutil"
 	"os"
-	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/papercutsoftware/silver/service/config"
 )
 
-const testFile = "test.config"
-
-func writeTestConfig(config string) {
-
-	err := ioutil.WriteFile(testFile, []byte(config), 0644)
-	if err != nil {
-		panic(err)
-	}
-
-}
-
-func deleteTestConfig() {
-	os.Remove(testFile)
-}
-
-func TestConfigFilePath(t *testing.T) {
-	f := getConfigFilePath()
-	ext := filepath.Ext(f)
-	if ext != ".conf" {
-		t.Errorf("Invalid config path. Ext: '%s', Path: '%s'", ext, f)
-	}
-}
-
-func TestMissingConfigShouldRaiseError(t *testing.T) {
-	_, err := LoadConfig()
+func TestLoadConfig_MissingFileShouldRaiseError(t *testing.T) {
+	_, err := config.LoadConfig("invalid.conf", config.ReplacementVars{})
 	if err == nil {
 		t.Errorf("Expect error on missing file")
 	}
 }
 
-func TestValidConfig(t *testing.T) {
-
-	defer deleteTestConfig()
-	config := `
+func TestLocadConfig_ValidConfig(t *testing.T) {
+	// Arrange
+	testConfig := `
     {
         "ServiceDescription" : {
             "DisplayName" : "My Service",
@@ -119,9 +96,18 @@ func TestValidConfig(t *testing.T) {
             }
         ]
     }`
-	writeTestConfig(config)
+	tmpFile := writeTestConfig(t, testConfig)
+	defer os.Remove(tmpFile)
 
-	c, err := loadConfigFromFile(testFile)
+	vars := config.ReplacementVars{
+		ServiceName: "MyServiceName",
+		ServiceRoot: `C:\ProgramFiles\MyService`,
+	}
+
+	// Act
+	c, err := config.LoadConfig(tmpFile, vars)
+
+	// Assert
 	if err != nil {
 		t.Errorf("Error loading config: %v", err)
 	}
@@ -157,10 +143,9 @@ func TestValidConfig(t *testing.T) {
 
 }
 
-func TestIncompleteConfig(t *testing.T) {
-
-	defer deleteTestConfig()
-	config := `
+func TestLoadConfig_IncompleteConfig(t *testing.T) {
+	// Arrange
+	testConfig := `
     {
         "ServiceDescription" : {
             "DisplayName" : "My Service",
@@ -191,9 +176,13 @@ func TestIncompleteConfig(t *testing.T) {
             }
         ]
     }`
-	writeTestConfig(config)
+	tmpFile := writeTestConfig(t, testConfig)
+	defer os.Remove(tmpFile)
 
-	c, err := loadConfigFromFile(testFile)
+	// Act
+	c, err := config.LoadConfig(tmpFile, config.ReplacementVars{})
+
+	// Assert
 	if err != nil {
 		t.Errorf("Error loading config: %v", err)
 	}
@@ -202,4 +191,17 @@ func TestIncompleteConfig(t *testing.T) {
 		t.Error("Expected zero commands")
 	}
 
+}
+
+func writeTestConfig(t *testing.T, config string) string {
+	tmpFile, err := ioutil.TempFile("", "test-config")
+	if err != nil {
+		t.Fatalf("Unable to write test config: %v", err)
+	}
+	defer tmpFile.Close()
+	_, err = tmpFile.WriteString(config)
+	if err != nil {
+		t.Fatalf("Unable to write test config: %v", err)
+	}
+	return tmpFile.Name()
 }

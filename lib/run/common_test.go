@@ -79,7 +79,7 @@ func TestHelperProcess(*testing.T) {
 		os.Exit(123)
 	case "echo-ping-fail-after":
 		i, _ := strconv.Atoi(args[0])
-		endTime := time.Now().Add(time.Duration(i) * time.Second)
+		failAt := time.Now().Add(time.Duration(i) * time.Second)
 
 		go sigExitHandler(0)
 		ln, err := net.Listen("tcp", "127.0.0.1:4300")
@@ -87,7 +87,7 @@ func TestHelperProcess(*testing.T) {
 			panic(err)
 		}
 		for {
-			if time.Now().Sub(endTime) < 0 {
+			if time.Now().Before(failAt) {
 				conn, err := ln.Accept()
 				if err != nil {
 					panic(err)
@@ -99,12 +99,13 @@ func TestHelperProcess(*testing.T) {
 					conn.Close()
 				}(conn)
 			} else {
+				// Die
 				time.Sleep(20 * time.Second)
 			}
 		}
 	case "tcp-ping-fail-after":
 		i, _ := strconv.Atoi(args[0])
-		endTime := time.Now().Add(time.Duration(i) * time.Second)
+		failAt := time.Now().Add(time.Duration(i) * time.Second)
 
 		go sigExitHandler(0)
 		ln, err := net.Listen("tcp", "127.0.0.1:4300")
@@ -112,7 +113,7 @@ func TestHelperProcess(*testing.T) {
 			panic(err)
 		}
 		for {
-			if time.Now().Sub(endTime) < 0 {
+			if time.Now().Before(failAt) {
 				conn, err := ln.Accept()
 				if err != nil {
 					panic(err)
@@ -121,6 +122,7 @@ func TestHelperProcess(*testing.T) {
 					conn.Close()
 				}(conn)
 			} else {
+				// Die
 				ln.Close()
 				break
 			}
@@ -128,11 +130,11 @@ func TestHelperProcess(*testing.T) {
 		time.Sleep(90 * time.Second)
 	case "http-ping-fail-after":
 		i, _ := strconv.Atoi(args[0])
-		endTime := time.Now().Add(time.Duration(i) * time.Second)
+		failAt := time.Now().Add(time.Duration(i) * time.Second)
 
 		//go sigExitHandler(0)
 		http.HandleFunc("/test", func(w http.ResponseWriter, r *http.Request) {
-			if time.Now().Sub(endTime) < 0 {
+			if time.Now().Before(failAt) {
 				fmt.Fprintf(w, "Working!")
 			} else {
 				http.Error(w, "Not working!", http.StatusInternalServerError)
@@ -142,10 +144,10 @@ func TestHelperProcess(*testing.T) {
 	case "file-ping-fail-after":
 		pingFile := "status.file"
 		i, _ := strconv.Atoi(args[0])
-		endTime := time.Now().Add(time.Duration(i) * time.Second)
+		failAt := time.Now().Add(time.Duration(i) * time.Second)
 
 		for {
-			if time.Now().Sub(endTime) < 0 {
+			if time.Now().Before(failAt) {
 				d := fmt.Sprintf("fake-change-%d", time.Now().Unix())
 				ioutil.WriteFile(pingFile, []byte(d), 0644)
 				time.Sleep(500 * time.Millisecond)

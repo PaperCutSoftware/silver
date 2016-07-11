@@ -22,15 +22,17 @@ import (
 	"github.com/papercutsoftware/silver/lib/logging"
 	"github.com/papercutsoftware/silver/lib/pathutils"
 	"github.com/papercutsoftware/silver/lib/run"
+	"github.com/papercutsoftware/silver/service/config"
 )
 
 const (
-	defaultRefreshPollSecs = 10
+	defaultRefreshPoll = 10 * time.Second
 )
 
 var (
-	logger      *log.Logger
-	config      *Config
+	logger *log.Logger
+	// FIXME: Remove globals!
+	conf        *config.Config
 	terminate   chan struct{}
 	done        sync.WaitGroup
 	cronManager *cron.Cron
@@ -39,8 +41,7 @@ var (
 func main() {
 
 	// Parse config (we don't action any errors quite yet)
-	var err error
-	config, err = LoadConfig()
+	conf, err := loadConf()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: Invalid config - %v\n", err)
 		os.Exit(1)
@@ -50,9 +51,9 @@ func main() {
 
 	// Check args
 	if !validateArgs() {
-		fmt.Printf("%s (%s)\n", config.ServiceDescription.DisplayName,
+		fmt.Printf("%s (%s)\n", conf.ServiceDescription.DisplayName,
 			serviceName())
-		fmt.Printf("%s\n\n", config.ServiceDescription.Description)
+		fmt.Printf("%s\n\n", conf.ServiceDescription.Description)
 		fmt.Printf("Usage:\n")
 		fmt.Printf("%s [install|uninstall|start|stop|command|validate|run|help] [command-name]\n", exeName())
 		fmt.Printf("  install   - Install the service.\n")
@@ -83,8 +84,8 @@ func main() {
 	}
 
 	// Setup log file out
-	logFile := config.ServiceConfig.LogFile
-	maxSize := int64(config.ServiceConfig.LogFileMaxSizeMb) * 1024 * 1024
+	logFile := conf.ServiceConfig.LogFile
+	maxSize := int64(conf.ServiceConfig.LogFileMaxSizeMb) * 1024 * 1024
 	if logFile == "" {
 		logFile = serviceName() + ".log"
 	}
@@ -93,8 +94,8 @@ func main() {
 	// Setup service
 	svcConfig := &service.Config{
 		Name:        serviceName(),
-		DisplayName: config.ServiceDescription.DisplayName,
-		Description: config.ServiceDescription.Description,
+		DisplayName: conf.ServiceDescription.DisplayName,
+		Description: conf.ServiceDescription.Description,
 	}
 
 	prog := &program{}
@@ -119,10 +120,20 @@ func main() {
 		os.Exit(1)
 	}
 
-	pidFile := config.ServiceConfig.PidFile
+	pidFile := conf.ServiceConfig.PidFile
 	if pidFile != "" {
 		ioutil.WriteFile(pidFile, []byte(fmt.Sprintf("%d\n", os.Getpid())), 0644)
 	}
+}
+
+func loadConf() (conf *config.Config, err error) {
+	// FIXME: Not Get this function out of utils.
+	confPath := getConfigFilePath()
+	vars := config.ReplacementVars{
+		ServiceName: serviceName(),
+		ServiceRoot: exeFolder(),
+	}
+	return config.LoadConfig(confPath, vars)
 }
 
 func execCommand() {
@@ -130,8 +141,8 @@ func execCommand() {
 	if len(os.Args) > 2 {
 		requestedCmd = os.Args[2]
 	}
-	var cmd *Command
-	for _, c := range config.Commands {
+	var cmd *config.Command
+	for _, c := range conf.Commands {
 		if c.Name == requestedCmd {
 			cmd = c
 			break
@@ -140,11 +151,11 @@ func execCommand() {
 
 	if cmd == nil {
 		fmt.Fprintf(os.Stderr, "ERROR: Unknown command '%s'. ", requestedCmd)
-		if len(config.Commands) == 0 {
+		if len(conf.Commands) == 0 {
 			fmt.Fprintf(os.Stderr, "There are no commands configured!\n")
 		} else {
 			fmt.Fprintf(os.Stderr, "Valid commands are:\n")
-			for _, cmd = range config.Commands {
+			for _, cmd = range conf.Commands {
 				fmt.Fprintf(os.Stderr, "    %s\n", cmd.Name)
 			}
 		}
@@ -191,7 +202,7 @@ func (p *program) Stop(s service.Service) error {
 
 	doStop()
 
-	pidFile := config.ServiceConfig.PidFile
+	pidFile := conf.ServiceConfig.PidFile
 	if pidFile != "" {
 		os.Remove(pidFile)
 	}
@@ -215,7 +226,7 @@ func doStart() {
 
 func doStop() {
 	// Create stop file... another method to signal services to stop.
-	stopFile := config.ServiceConfig.StopFile
+	stopFile := conf.ServiceConfig.StopFile
 	if stopFile == "" {
 		stopFile = ".stop"
 	}
@@ -234,7 +245,7 @@ func doStop() {
 }
 
 func watchForReload() {
-	f := config.ServiceConfig.ReloadFile
+	f := conf.ServiceConfig.ReloadFile
 	if f == "" {
 		f = ".reload"
 	}
@@ -243,13 +254,13 @@ func watchForReload() {
 	}
 	for {
 		// FIXME: File system notification rather than polling?
-		time.Sleep(defaultRefreshPollSecs * time.Second)
+		time.Sleep(defaultRefreshPoll)
 		if _, err := os.Stat(f); err == nil {
 			if err := os.Remove(f); err == nil {
 				logger.Printf("Reload requested")
 				doStop()
 				time.Sleep(time.Second)
-				config, _ = LoadConfig()
+				conf, _ = loadConf()
 				doStart()
 			}
 		}
@@ -257,8 +268,8 @@ func watchForReload() {
 }
 
 func execStartupTasks() {
-	for _, task := range config.StartupTasks {
-		runTask := func(task *StartupTask) {
+	for _, task := range conf.StartupTasks {
+		runTask := func(task *config.StartupTask) {
 			defer done.Done()
 			done.Add(1)
 
@@ -286,8 +297,8 @@ func execStartupTasks() {
 }
 
 func startServices() {
-	for _, service := range config.Services {
-		go func(service *Service) {
+	for _, service := range conf.Services {
+		go func(service *config.Service) {
 			defer done.Done()
 			done.Add(1)
 
@@ -308,7 +319,7 @@ func startServices() {
 
 func setupScheduledTasks() {
 	cronManager = cron.New()
-	for _, task := range config.ScheduledTasks {
+	for _, task := range conf.ScheduledTasks {
 		cc := new(run.CommandConfig)
 		cc.Path = pathutils.FindLastFile(task.Path)
 		cc.Args = task.Args

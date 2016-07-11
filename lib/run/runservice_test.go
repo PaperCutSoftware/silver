@@ -163,14 +163,14 @@ func TestServiceEchoMonitorFailure(t *testing.T) {
 		close(terminate)
 	}()
 
-	startingTime := time.Now().UTC()
+	startTime := time.Now()
 	err := RunService(c, terminate)
 	if err == nil {
 		t.Errorf("Service should have raised MaxCrashCount error")
 	}
-	endingTime := time.Now().UTC()
+	endTime := time.Now()
 
-	duration := endingTime.Sub(startingTime)
+	duration := endTime.Sub(startTime)
 
 	if duration < time.Duration(failTime*time.Second) {
 		t.Error("Expected test to take longer")
