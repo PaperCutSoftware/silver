@@ -49,7 +49,7 @@ func main() {
 
 	action, actionArgs, err := parse(os.Args)
 	if err != nil {
-		printUsage(conf.ServiceDescription.DisplayName, config.ServiceDescription.Description)
+		printUsage(conf.ServiceDescription.DisplayName, conf.ServiceDescription.Description)
 		os.Exit(1)
 	}
 
@@ -167,15 +167,15 @@ func execCommand(cmdName string, cmdExtraArgs []string) {
 	var cmd *config.Command
 	for _, c := range conf.Commands {
 		if c.Name == cmdName {
-			cmd = c
+			cmd = &c
 			break
 		}
 	}
 
 	if cmd == nil {
 		fmt.Fprintf(os.Stderr, "Valid commands are:\n")
-		for _, cmd = range conf.Commands {
-			fmt.Fprintf(os.Stderr, "    %s\n", cmd.Name)
+		for _, command := range conf.Commands {
+			fmt.Fprintf(os.Stderr, "    %s\n", command.Name)
 		}
 		os.Exit(1)
 	}
