@@ -1,19 +1,43 @@
-package procmngt
+package procmngt_test
 
 import (
 	"testing"
 	"time"
 )
 
+func Test_CompleteExample(t *testing.T) {
+
+	_, thisFile, _, _ := runtime.Caller(0)
+	helloWorldGo := path.Dir(thisFile) + "/testexes/helloworld.go"
+
+	tmpDir, testExe = makeTestExe(t, helloWorldGo)
+	defer os.RemoveAll(tmpDir)
+
+	execConf := procmgmt.ExecConfig{
+		Path:         testExe,
+		Args:         []string{"go test"},
+		StartupDelay: 1 * time.Second,
+		Stdin: nil,
+		Stdout: os.Stdout,
+		Stderr os.Stderr,
+	}
+	executable := procmgmt.NewExecutable(execConf)
+
+	executable.Stdout = myfile
+
+	executable.Execute(nil)
+
+}
+
 func Test_FixedDelayedStartupCommand(t *testing.T) {
 	// Arrange
 	delayed := time.Duration(1 * time.Second)
-	execConf := ExecConfig{
+	execConf := procmgmt.ExecConfig{
 		Path:         `c:\windows\System32\ping.exe`,
 		Args:         []string{"-n", "1", "localhost"},
 		StartupDelay: delayed,
 	}
-	executable := NewExecutable(execConf)
+	executable := procmgmt.NewExecutable(execConf)
 	start := time.Now()
 
 	// Act
@@ -29,12 +53,12 @@ func Test_FixedDelayedStartupCommand(t *testing.T) {
 func Test_TimedOutCommand(t *testing.T) {
 	// Arrange
 	timeout := time.Duration(1 * time.Second)
-	execConf := ExecConfig{
+	execConf := procmgmt.ExecConfig{
 		Path:        `c:\windows\System32\ping.exe`,
 		Args:        []string{"-n", "10", "localhost"},
 		ExecTimeout: timeout,
 	}
-	executable := NewExecutable(execConf)
+	executable := procmgmt.NewExecutable(execConf)
 	start := time.Now()
 
 	// Act
@@ -57,14 +81,14 @@ func Test_StartupDelayedAndTimedOutCommand(t *testing.T) {
 	delayed := time.Duration(1 * time.Second)
 	randDelayed := time.Duration(2 * time.Second)
 	timeout := time.Duration(1 * time.Second)
-	execConf := ExecConfig{
+	execConf := procmgmt.ExecConfig{
 		Path:               `c:\windows\System32\ping.exe`,
 		Args:               []string{"-n", "1", "localhost"},
 		ExecTimeout:        timeout,
 		StartupDelay:       delayed,
 		StartupRandomDelay: randDelayed,
 	}
-	executable := NewExecutable(execConf)
+	executable := procmgmt.NewExecutable(execConf)
 	start := time.Now()
 
 	// Act
@@ -106,3 +130,21 @@ func Test_StartupDelayedAndTimedOutCommand(t *testing.T) {
 //		t.Fatalf("The command was not shut down")
 //	}
 //}
+
+
+func makeTestExe(t *testing.T, testSrc string) (tmpDir, testExe string) {
+	tmpDir, err := ioutil.TempDir("", "TestProcmgmt")
+	if err != nil {
+		t.Fatal("TempDir failed: ", err)
+	}
+
+	// compile it
+	exe := filepath.Join(tmpDir, path.Base(testSrc)) + ".exe"
+	o, err := exec.Command("go", "build", "-o", exe, testSrc).CombinedOutput()
+	if err != nil {
+		t.Fatalf("Failed to compile: %v\n%v", err, string(o))
+	}
+	return tmpDir, exe
+}
+
+

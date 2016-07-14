@@ -2,6 +2,7 @@ package procmngt
 
 import (
 	"errors"
+	"io"
 	"math/rand"
 	"os"
 	"os/exec"
@@ -31,9 +32,13 @@ type ExecConfig struct {
 	Path               string
 	Args               []string
 	StartupDelay       time.Duration
-	StartupRandomDelay time.Duration
+	StartupRandomDelay time.Duration // FIXME: Remove and move up
 	ExecTimeout        time.Duration
 	GracefulShutDown   time.Duration
+	Stdout             io.Writer
+	Stderr             io.Writer
+	Stdin              io.Reader
+	// FUTURE: Maybe Env?
 }
 
 type executable struct {
@@ -42,7 +47,6 @@ type executable struct {
 }
 
 func (c executable) Execute(terminate chan struct{}) (exitCode int, err error) {
-	c.cmd.SysProcAttr = osutils.ProcessSysProcAttrForQuit()
 	if err := c.cmd.Start(); err != nil {
 		return 255, err
 	}
@@ -51,7 +55,7 @@ func (c executable) Execute(terminate chan struct{}) (exitCode int, err error) {
 	go func() {
 		select {
 		case <-terminate:
-			// TODO: log error
+			// FUTURE: log error or return if we find we need to have visability.
 			err = osutils.ProcessKillGracefully(c.cmd.Process.Pid, c.gracefulShutdown)
 		case <-complete:
 			return
@@ -69,7 +73,7 @@ func (c executable) Execute(terminate chan struct{}) (exitCode int, err error) {
 }
 
 type startupDelayedExecutable struct {
-	wrappedCmd         Executable
+	wrappedExecutable  Executable
 	startupDelay       time.Duration
 	startupRandomDelay time.Duration
 }
@@ -85,12 +89,12 @@ func (sdc startupDelayedExecutable) Execute(terminate chan struct{}) (exitCode i
 		return 255, ErrManualTerminate
 	case <-time.After(startupDelay):
 	}
-	return sdc.wrappedCmd.Execute(terminate)
+	return sdc.wrappedExecutable.Execute(terminate)
 }
 
 type timeoutExecutable struct {
-	wrappedCmd  Executable
-	execTimeout time.Duration
+	wrappedExecutable Executable
+	execTimeout       time.Duration
 }
 
 func (tc timeoutExecutable) Execute(terminate chan struct{}) (exitCode int, err error) {
@@ -102,30 +106,32 @@ func (tc timeoutExecutable) Execute(terminate chan struct{}) (exitCode int, err 
 		}
 		close(t)
 	}()
-	return tc.wrappedCmd.Execute(t)
+	return tc.wrappedExecutable.Execute(t)
 }
 
 func NewExecutable(execConf ExecConfig) Executable {
-	var silverExec Executable
-	silverExec = executable{cmd: setupLogging(execConf), gracefulShutdown: execConf.GracefulShutDown}
+	var e Executable
+	e = executable{cmd: setupCmd(execConf), gracefulShutdown: execConf.GracefulShutDown}
 	if isStartupDelayedCmd(execConf) {
-		silverExec = startupDelayedExecutable{
-			wrappedCmd:         silverExec,
+		e = startupDelayedExecutable{
+			wrappedExecutable:  e,
 			startupDelay:       execConf.StartupDelay,
 			startupRandomDelay: execConf.StartupRandomDelay,
 		}
 	}
 
 	if isTimeoutCmd(execConf) {
-		silverExec = timeoutExecutable{wrappedCmd: silverExec, execTimeout: execConf.ExecTimeout}
+		e = timeoutExecutable{wrappedExecutable: e, execTimeout: execConf.ExecTimeout}
 	}
-	return silverExec
+	return e
 }
 
-func setupLogging(cmdConf ExecConfig) *exec.Cmd {
+func setupCmd(cmdConf ExecConfig) *exec.Cmd {
 	cmd := exec.Command(cmdConf.Path, cmdConf.Args...)
-	cmd.Stdout = os.Stdout
-	cmd.Stderr = os.Stderr
+	cmd.SysProcAttr = osutils.ProcessSysProcAttrForQuit()
+	cmd.Stdout = cmdConf.Stdout
+	cmd.Stderr = cmdConf.Stderr
+	cmd.Stdin = cmdConf.Stdin
 	return cmd
 }
 
