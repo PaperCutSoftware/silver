@@ -5,6 +5,8 @@
 // See the project's LICENSE file for more information.
 //
 
+// +build ignore
+
 package main
 
 import (
