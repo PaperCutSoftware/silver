@@ -29,4 +29,8 @@ _testmain.go
 *.exe
 *.test
 
+# Direnv stuff
 .envrc
+
+# Temp files from Vim
+*.swp
