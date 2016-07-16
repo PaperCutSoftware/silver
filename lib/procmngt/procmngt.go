@@ -11,18 +11,23 @@ import (
 	"errors"
 	"io"
 	"os/exec"
+	"sync"
 	"syscall"
 	"time"
 
 	"github.com/papercutsoftware/silver/lib/osutils"
 )
 
+const (
+	errorExitCode = 255
+)
+
 var (
-	ErrManualTerminate = errors.New("Manually terminated")
+	errManualTerminate = errors.New("Manually terminated")
 )
 
 type Executable interface {
-	Execute(terminate chan struct{}) (exitCode int, err error)
+	Execute(terminate <-chan struct{}) (exitCode int, err error)
 }
 
 type ExecConfig struct {
@@ -42,13 +47,15 @@ type executable struct {
 	gracefulShutdown time.Duration
 }
 
-func (c executable) Execute(terminate chan struct{}) (exitCode int, err error) {
+func (c executable) Execute(terminate <-chan struct{}) (exitCode int, err error) {
 	if err := c.cmd.Start(); err != nil {
-		return 255, err
+		return errorExitCode, err
 	}
+	var done sync.WaitGroup
+	done.Add(1)
 	complete := make(chan struct{})
-	defer close(complete)
 	go func() {
+		defer done.Done()
 		select {
 		case <-terminate:
 			// FUTURE: log error or return if we find we need to have visibility.
@@ -66,6 +73,9 @@ func (c executable) Execute(terminate chan struct{}) (exitCode int, err error) {
 			}
 		}
 	}
+	//Have to call these here to avoid race condition
+	close(complete)
+	done.Wait()
 	return exitCode, nil
 }
 
@@ -74,10 +84,10 @@ type startupDelayedExecutable struct {
 	startupDelay      time.Duration
 }
 
-func (sdc startupDelayedExecutable) Execute(terminate chan struct{}) (exitCode int, err error) {
+func (sdc startupDelayedExecutable) Execute(terminate <-chan struct{}) (exitCode int, err error) {
 	select {
 	case <-terminate:
-		return 255, ErrManualTerminate
+		return errorExitCode, errManualTerminate
 	case <-time.After(sdc.startupDelay):
 	}
 	return sdc.wrappedExecutable.Execute(terminate)
@@ -88,7 +98,7 @@ type timeoutExecutable struct {
 	execTimeout       time.Duration
 }
 
-func (tc timeoutExecutable) Execute(terminate chan struct{}) (exitCode int, err error) {
+func (tc timeoutExecutable) Execute(terminate <-chan struct{}) (exitCode int, err error) {
 	t := make(chan struct{})
 	go func() {
 		select {
@@ -102,7 +112,10 @@ func (tc timeoutExecutable) Execute(terminate chan struct{}) (exitCode int, err 
 
 func NewExecutable(execConf ExecConfig) Executable {
 	var e Executable
-	e = executable{cmd: setupCmd(execConf), gracefulShutdown: execConf.GracefulShutDown}
+	e = executable{
+		cmd:              setupCmd(execConf),
+		gracefulShutdown: execConf.GracefulShutDown,
+	}
 	if isStartupDelayedCmd(execConf) {
 		e = startupDelayedExecutable{
 			wrappedExecutable: e,
@@ -111,7 +124,10 @@ func NewExecutable(execConf ExecConfig) Executable {
 	}
 
 	if isTimeoutCmd(execConf) {
-		e = timeoutExecutable{wrappedExecutable: e, execTimeout: execConf.ExecTimeout}
+		e = timeoutExecutable{
+			wrappedExecutable: e,
+			execTimeout:       execConf.ExecTimeout,
+		}
 	}
 	return e
 }

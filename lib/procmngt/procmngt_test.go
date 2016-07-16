@@ -80,7 +80,7 @@ func Test_FixedDelayedStartupCommand(t *testing.T) {
 	// Arrange
 	tmpDir, testExe := makeHelloWorld(t)
 	defer os.RemoveAll(tmpDir)
-	delayed := time.Duration(1) * time.Second
+	delayed := 1 * time.Second
 	execConf := procmngt.ExecConfig{
 		Path:         testExe,
 		StartupDelay: delayed,
@@ -102,7 +102,7 @@ func Test_TimedOutCommand(t *testing.T) {
 	// Arrange
 	tmpDir, testExe := makeHelloWorldForever(t)
 	defer os.RemoveAll(tmpDir)
-	timeout := time.Duration(1) * time.Second
+	timeout := 1 * time.Second
 	execConf := procmngt.ExecConfig{
 		Path:        testExe,
 		ExecTimeout: timeout,
@@ -118,7 +118,7 @@ func Test_TimedOutCommand(t *testing.T) {
 	if elapsed < timeout {
 		t.Fatalf("The command exit before the timeout")
 	}
-	threshold := time.Duration(500) * time.Millisecond
+	threshold := 500 * time.Millisecond
 	if elapsed > timeout+threshold {
 		t.Fatalf("Timeout is not enforced")
 	}
@@ -128,8 +128,8 @@ func Test_StartupDelayedAndTimedOutCommand(t *testing.T) {
 	// Arrange
 	tmpDir, testExe := makeHelloWorldForever(t)
 	defer os.RemoveAll(tmpDir)
-	delayed := time.Duration(1) * time.Second
-	timeout := time.Duration(1) * time.Second
+	delayed := 1 * time.Second
+	timeout := 1 * time.Second
 	execConf := procmngt.ExecConfig{
 		Path:         testExe,
 		ExecTimeout:  timeout,
@@ -143,7 +143,7 @@ func Test_StartupDelayedAndTimedOutCommand(t *testing.T) {
 
 	// Assert
 	elapsed := time.Since(start)
-	threshold := time.Duration(500) * time.Millisecond // the command should take less than threshold to run
+	threshold := 500 * time.Millisecond // the command should take less than threshold to run
 	if elapsed >= timeout+delayed+threshold {
 		t.Fatalf("The command took longer than expected")
 	}
@@ -155,7 +155,7 @@ func Test_GracefulShutDownCommand(t *testing.T) {
 	defer os.RemoveAll(tmpDir)
 	execConf := procmngt.ExecConfig{
 		Path:             testExe,
-		GracefulShutDown: time.Duration(1 * time.Second),
+		GracefulShutDown: 1 * time.Second,
 	}
 	executable := procmngt.NewExecutable(execConf)
 	start := time.Now()
@@ -172,8 +172,8 @@ func Test_GracefulShutDownCommand(t *testing.T) {
 
 	// Assert
 	elapsed := time.Since(start)
-	threshold := time.Duration(500) * time.Millisecond // the command should take less than threshold to run
-	if elapsed > time.Duration(3)*time.Second + threshold {
+	threshold := 500 * time.Millisecond // the command should take less than threshold to run
+	if elapsed > 3*time.Second+threshold {
 		t.Fatalf("The command was not shut down")
 	}
 }
