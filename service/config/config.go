@@ -60,7 +60,7 @@ type MonitorPing struct {
 	RestartOnFailureCount int
 }
 
-type task struct {
+type Task struct {
 	command
 	TimeoutSecs            int
 	StartupDelaySecs       int
@@ -68,12 +68,12 @@ type task struct {
 }
 
 type StartupTask struct {
-	task
+	Task
 	Async bool
 }
 
 type ScheduledTask struct {
-	task
+	Task
 	Schedule string
 }
 

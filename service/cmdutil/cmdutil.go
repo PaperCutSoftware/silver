@@ -14,9 +14,9 @@ import (
 )
 
 type CommandConfig struct {
-	Path        string
-	Args        []string
-	ExecTimeout time.Duration
+	Path               string
+	Args               []string
+	ExecTimeout        time.Duration
 }
 
 func Execute(cmdConf CommandConfig) (exitCode int, err error) {

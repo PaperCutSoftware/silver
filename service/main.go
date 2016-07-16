@@ -20,9 +20,9 @@ import (
 
 	"github.com/papercutsoftware/silver/lib/logging"
 	"github.com/papercutsoftware/silver/lib/pathutils"
-	"github.com/papercutsoftware/silver/lib/run"
-	"github.com/papercutsoftware/silver/lib/cmdutil"
+	"github.com/papercutsoftware/silver/service/cmdutil"
 	"github.com/papercutsoftware/silver/service/config"
+	"github.com/papercutsoftware/silver/service/svcutil"
 )
 
 const (
@@ -182,7 +182,7 @@ func execCommand(cmdName string, cmdExtraArgs []string) {
 
 	cmdConf := cmdutil.CommandConfig{}
 	cmdConf.Path = pathutils.FindLastFile(cmd.Path)
-	cmdConf.Args  = cmd.Args
+	cmdConf.Args = cmd.Args
 	cmdConf.ExecTimeout = (time.Second * time.Duration(cmd.TimeoutSecs))
 
 	exitCode, err := cmdutil.Execute(cmdConf)
@@ -281,25 +281,19 @@ func watchForReload() {
 func execStartupTasks() {
 	for _, task := range conf.StartupTasks {
 		runTask := func(task config.StartupTask) {
-			defer done.Done()
 			done.Add(1)
-
-			cc := new(run.CommandConfig)
-			cc.Path = pathutils.FindLastFile(task.Path)
-			cc.Args = task.Args
-			cc.Logger = logger
-			cc.TimeoutSecs = task.TimeoutSecs
-			if task.Async {
-				cc.StartupDelaySecs = task.StartupDelaySecs
-				cc.StartupRandomDelaySecs = task.StartupRandomDelaySecs
-			} else if cc.StartupDelaySecs > 0 || cc.StartupRandomDelaySecs > 0 {
-				logger.Printf("WARNING: Only Async startup tasks may have startup delays.")
-			}
-			if _, err := run.RunCommand(cc, terminate); err != nil {
-				logger.Printf("ERROR: Startup task '%s' reported: %v", cc.Path, err)
+			defer done.Done()
+			taskConfig := createTaskConfig(task.Task)
+			if exitCode, err := svcutil.ExecuteTask(terminate, taskConfig); err != nil {
+				logger.Printf("ERROR: Startup task '%s' reported: %v", taskConfig.Path, err)
+			} else {
+				logger.Printf("The task exits with exit code %d", exitCode)
 			}
 		}
 		if task.Async {
+			if task.StartupDelaySecs > 0 || task.StartupRandomDelaySecs > 0 {
+				logger.Printf("WARNING: Only Async startup tasks may have startup delays.")
+			}
 			go runTask(task)
 		} else {
 			runTask(task)
@@ -310,44 +304,60 @@ func execStartupTasks() {
 func startServices() {
 	for _, service := range conf.Services {
 		go func(service config.Service) {
-			defer done.Done()
 			done.Add(1)
+			defer done.Done()
+			svcConfig := svcutil.ServiceConfig{}
+			svcConfig.Path = service.Path
+			svcConfig.Args = service.Args
+			svcConfig.GracefulShutDown = time.Duration(service.GracefulShutdownTimeout) * time.Second
+			svcConfig.StartupDelay = time.Duration(service.StartupDelaySecs) * time.Second
+			svcConfig.Logger = logger
+			svcConfig.CrashConfig = svcutil.CrashConfig{
+				MaxCount:     service.MaxCrashCount,
+				RestartDelay: time.Duration(service.RestartDelaySecs) * time.Second,
+			}
+			svcConfig.MonitorConfig = svcutil.MonitorConfig{
+				URL:                   service.MonitorPing.URL,
+				StartupDelay:          time.Duration(service.MonitorPing.StartupDelaySecs) * time.Second,
+				Interval:              time.Duration(service.MonitorPing.IntervalSecs) * time.Second,
+				Timeout:               time.Duration(service.MonitorPing.TimeoutSecs) * time.Second,
+				RestartOnFailureCount: service.MonitorPing.RestartOnFailureCount,
+			}
+			if err := svcutil.ExecuteService(terminate, svcConfig); err != nil {
+				logger.Printf("ERROR: Service '%s' reported: %v", service.Path, err)
 
-			sc := new(run.ServiceConfig)
-			sc.Path = pathutils.FindLastFile(service.Path)
-			sc.Args = service.Args
-			sc.Logger = logger
-			sc.MaxCrashCount = service.MaxCrashCount
-			sc.RestartDelaySecs = service.RestartDelaySecs
-			sc.StartupDelaySecs = service.StartupDelaySecs
-
-			if err := run.RunService(sc, terminate); err != nil {
-				logger.Printf("ERROR: Service '%s' reported: %v", sc.Path, err)
 			}
 		}(service)
 	}
 }
 
+func createTaskConfig(task config.Task) svcutil.TaskConfig {
+	taskConfig := svcutil.TaskConfig{}
+	taskConfig.Path = pathutils.FindLastFile(task.Path)
+	taskConfig.Args = task.Args
+	taskConfig.ExecTimeout = time.Duration(task.TimeoutSecs) * time.Second
+	taskConfig.StartupDelay = time.Duration(task.StartupDelaySecs) * time.Second
+	taskConfig.StartupRandomDelay = time.Duration(task.StartupRandomDelaySecs) * time.Second
+	taskConfig.Logger = logger // TODO: Global?????
+	return taskConfig
+}
+
 func setupScheduledTasks() {
 	cronManager = cron.New()
-	for _, task := range conf.ScheduledTasks {
-		cc := new(run.CommandConfig)
-		cc.Path = pathutils.FindLastFile(task.Path)
-		cc.Args = task.Args
-		cc.Logger = logger
-		cc.TimeoutSecs = task.TimeoutSecs
-		cc.StartupDelaySecs = task.StartupDelaySecs
-		cc.StartupRandomDelaySecs = task.StartupRandomDelaySecs
+	for _, scheduledTask := range conf.ScheduledTasks {
+		taskConfig := createTaskConfig(scheduledTask.Task)
 		runTask := func() {
-			defer done.Done()
 			done.Add(1)
-			if _, err := run.RunCommand(cc, terminate); err != nil {
-				logger.Printf("Error raised by scheduled task '%s': %v", cc.Path, err)
+			defer done.Done()
+			if exitCode, err := svcutil.ExecuteTask(terminate, taskConfig); err != nil {
+				logger.Printf("ERROR: scheduled task '%s' reported: %v", taskConfig.Path, err)
+			} else {
+				logger.Printf("The task exits with exit code %d", exitCode)
 			}
 		}
-		err := cronManager.AddFunc(task.Schedule, runTask)
+		err := cronManager.AddFunc(scheduledTask.Schedule, runTask)
 		if err != nil {
-			logger.Printf("Unable to schedule task '%s': %v", task.Path, err)
+			logger.Printf("Unable to schedule task '%s': %v", scheduledTask.Path, err)
 		}
 	}
 	cronManager.Start()

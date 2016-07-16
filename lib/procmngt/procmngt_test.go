@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/papercutsoftware/silver/lib/procmngt"
-	"fmt"
 )
 
 func Test_CustomLoggerForStdout(t *testing.T) {
@@ -81,7 +80,7 @@ func Test_FixedDelayedStartupCommand(t *testing.T) {
 	// Arrange
 	tmpDir, testExe := makeHelloWorld(t)
 	defer os.RemoveAll(tmpDir)
-	delayed := time.Duration(1 * time.Second)
+	delayed := time.Duration(1) * time.Second
 	execConf := procmngt.ExecConfig{
 		Path:         testExe,
 		StartupDelay: delayed,
@@ -103,7 +102,7 @@ func Test_TimedOutCommand(t *testing.T) {
 	// Arrange
 	tmpDir, testExe := makeHelloWorldForever(t)
 	defer os.RemoveAll(tmpDir)
-	timeout := time.Duration(1 * time.Second)
+	timeout := time.Duration(1) * time.Second
 	execConf := procmngt.ExecConfig{
 		Path:        testExe,
 		ExecTimeout: timeout,
@@ -119,7 +118,7 @@ func Test_TimedOutCommand(t *testing.T) {
 	if elapsed < timeout {
 		t.Fatalf("The command exit before the timeout")
 	}
-	threshold := time.Duration(500 * time.Millisecond)
+	threshold := time.Duration(500) * time.Millisecond
 	if elapsed > timeout+threshold {
 		t.Fatalf("Timeout is not enforced")
 	}
@@ -129,8 +128,8 @@ func Test_StartupDelayedAndTimedOutCommand(t *testing.T) {
 	// Arrange
 	tmpDir, testExe := makeHelloWorldForever(t)
 	defer os.RemoveAll(tmpDir)
-	delayed := time.Duration(1 * time.Second)
-	timeout := time.Duration(1 * time.Second)
+	delayed := time.Duration(1) * time.Second
+	timeout := time.Duration(1) * time.Second
 	execConf := procmngt.ExecConfig{
 		Path:         testExe,
 		ExecTimeout:  timeout,
@@ -144,7 +143,7 @@ func Test_StartupDelayedAndTimedOutCommand(t *testing.T) {
 
 	// Assert
 	elapsed := time.Since(start)
-	threshold := time.Duration(500 * time.Millisecond) // the command should take less than threshold to run
+	threshold := time.Duration(500) * time.Millisecond // the command should take less than threshold to run
 	if elapsed >= timeout+delayed+threshold {
 		t.Fatalf("The command took longer than expected")
 	}
@@ -164,7 +163,6 @@ func Test_GracefulShutDownCommand(t *testing.T) {
 	go func() {
 		select {
 		case <-time.After(2 * time.Second):
-			fmt.Println("After 2 seconds")
 			close(terminate)
 		}
 	}()
@@ -174,8 +172,8 @@ func Test_GracefulShutDownCommand(t *testing.T) {
 
 	// Assert
 	elapsed := time.Since(start)
-	threshold := time.Duration(500 * time.Millisecond) // the command should take less than threshold to run
-	if elapsed > time.Duration(3*time.Second)+threshold {
+	threshold := time.Duration(500) * time.Millisecond // the command should take less than threshold to run
+	if elapsed > time.Duration(3)*time.Second + threshold {
 		t.Fatalf("The command was not shut down")
 	}
 }
