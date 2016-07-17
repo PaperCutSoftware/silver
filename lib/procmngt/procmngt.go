@@ -39,7 +39,7 @@ type ExecConfig struct {
 	Stdout           io.Writer
 	Stderr           io.Writer
 	Stdin            io.Reader
-	// FUTURE: Maybe Env?
+	Env              []string
 }
 
 type executable struct {
@@ -138,6 +138,7 @@ func setupCmd(exeConf ExecConfig) *exec.Cmd {
 	cmd.Stdout = exeConf.Stdout
 	cmd.Stderr = exeConf.Stderr
 	cmd.Stdin = exeConf.Stdin
+	cmd.Env = exeConf.Env
 	return cmd
 }
 

@@ -98,6 +98,43 @@ func Test_FixedDelayedStartupCommand(t *testing.T) {
 	}
 }
 
+func Test_FixedDelayedStoppedByTerminateBeforeStart(t *testing.T) {
+	// Arrange
+	tmpDir, testExe := makeHelloWorld(t)
+	defer os.RemoveAll(tmpDir)
+	delayed := 2 * time.Second
+	execConf := procmngt.ExecConfig{
+		Path:         testExe,
+		StartupDelay: delayed,
+	}
+	executable := procmngt.NewExecutable(execConf)
+	start := time.Now()
+
+	// Act
+	stopped := 1 * time.Second
+	stop := make(chan struct{})
+	go func() {
+		defer close(stop)
+		time.Sleep(stopped)
+	}()
+
+	actualExitCode, err := executable.Execute(stop)
+	const expectExitCode = 255
+	if actualExitCode != expectExitCode {
+		t.Fatalf("Expected exitCode: %v but got :%v", expectExitCode, actualExitCode)
+	}
+	if err == nil {
+		t.Fatalf("Expected error but got nothing")
+	}
+
+	// Assert
+	threshold := 500 * time.Millisecond
+	elapsed := time.Since(start)
+	if elapsed > stopped+threshold {
+		t.Fatalf("terminate channel is not enforced")
+	}
+}
+
 func Test_TimedOutCommand(t *testing.T) {
 	// Arrange
 	tmpDir, testExe := makeHelloWorldForever(t)
@@ -175,6 +212,29 @@ func Test_GracefulShutDownCommand(t *testing.T) {
 	threshold := 500 * time.Millisecond // the command should take less than threshold to run
 	if elapsed > 3*time.Second+threshold {
 		t.Fatalf("The command was not shut down")
+	}
+}
+
+func Test_CommandWithCustomEnv(t *testing.T) {
+	//Arrange
+	tmpDir, testExe := makeHelloWorld(t)
+	defer os.RemoveAll(tmpDir)
+
+	expect := ""
+	output := &bytes.Buffer{}
+	execConf := procmngt.ExecConfig{
+		Path:   testExe,
+		Stdout: output,
+		Env:    []string{"ENV_TEST_VAR=" + expect},
+	}
+	executable := procmngt.NewExecutable(execConf)
+
+	//Act
+	executable.Execute(nil)
+
+	//Assert
+	if !strings.Contains(output.String(), expect) {
+		t.Fatalf("Expected to contain '%s' but got '%s'", expect, output.String())
 	}
 }
 

@@ -24,6 +24,10 @@ func main() {
 			fmt.Printf("Hello %s!\n", os.Args[1])
 		}
 	} else {
-		fmt.Println("Hello World!")
+		if os.Getenv("ENV_TEST_VAR") != "" {
+			fmt.Printf("Hello %s\n", os.Getenv("ENV_TEST_VAR"))
+		} else {
+			fmt.Println("Hello World!")
+		}
 	}
 }
