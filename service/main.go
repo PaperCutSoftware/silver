@@ -29,19 +29,23 @@ const (
 	defaultRefreshPoll = 10 * time.Second
 )
 
-var (
-	logger *log.Logger
-	// FIXME: Remove globals!
-	conf        *config.Config
-	terminate   chan struct{}
-	done        sync.WaitGroup
-	cronManager *cron.Cron
-)
+type context struct {
+	conf         *config.Config
+	terminate    chan struct{}
+	logger       *log.Logger
+	runningGroup sync.WaitGroup
+	cronManager  *cron.Cron
+}
 
 func main() {
 
+	ctx := &context{
+		terminate: make(chan struct{}),
+	}
+
 	// Parse config (we don't action any errors quite yet)
-	conf, err := loadConf()
+	var err error
+	ctx.conf, err = loadConf()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: Invalid config - %v\n", err)
 		os.Exit(1)
@@ -49,7 +53,7 @@ func main() {
 
 	action, actionArgs, err := parse(os.Args)
 	if err != nil {
-		printUsage(conf.ServiceDescription.DisplayName, conf.ServiceDescription.Description)
+		printUsage(ctx.conf.ServiceDescription.DisplayName, ctx.conf.ServiceDescription.Description)
 		os.Exit(1)
 	}
 
@@ -68,33 +72,33 @@ func main() {
 		if len(actionArgs) >= 4 {
 			cmdExtraArgs = actionArgs[3:]
 		}
-		execCommand(cmdName, cmdExtraArgs)
+		execCommand(ctx, cmdName, cmdExtraArgs)
 	case "validate":
 		fmt.Println("Config is valid")
 		os.Exit(0)
 	default:
-		serviceControl(conf)
+		osServiceControl(ctx)
 	}
 }
 
-func serviceControl(config *config.Config) {
+func osServiceControl(ctx *context) {
 	// Setup log file out
-	logFile := conf.ServiceConfig.LogFile
-	maxSize := int64(conf.ServiceConfig.LogFileMaxSizeMb) * 1024 * 1024
+	logFile := ctx.conf.ServiceConfig.LogFile
+	maxSize := int64(ctx.conf.ServiceConfig.LogFileMaxSizeMb) * 1024 * 1024
 	if logFile == "" {
 		logFile = serviceName() + ".log"
 	}
-	logger = logging.NewFileLoggerWithMaxSize(logFile, maxSize)
+	ctx.logger = logging.NewFileLoggerWithMaxSize(logFile, maxSize)
 
 	// Setup service
 	svcConfig := &service.Config{
 		Name:        serviceName(),
-		DisplayName: conf.ServiceDescription.DisplayName,
-		Description: conf.ServiceDescription.Description,
+		DisplayName: ctx.conf.ServiceDescription.DisplayName,
+		Description: ctx.conf.ServiceDescription.Description,
 	}
 
-	prog := &program{}
-	svc, err := service.New(prog, svcConfig)
+	osService := &osService{ctx: ctx}
+	svc, err := service.New(osService, svcConfig)
 	if err != nil {
 		fmt.Printf("ERROR: Invalid service config: %v\n", err)
 		os.Exit(1)
@@ -115,7 +119,7 @@ func serviceControl(config *config.Config) {
 		os.Exit(1)
 	}
 
-	pidFile := conf.ServiceConfig.PidFile
+	pidFile := ctx.conf.ServiceConfig.PidFile
 	if pidFile != "" {
 		ioutil.WriteFile(pidFile, []byte(fmt.Sprintf("%d\n", os.Getpid())), 0644)
 	}
@@ -159,13 +163,13 @@ func loadConf() (conf *config.Config, err error) {
 	return conf, err
 }
 
-func execCommand(cmdName string, cmdExtraArgs []string) {
-	if len(conf.Commands) == 0 {
+func execCommand(ctx *context, cmdName string, cmdExtraArgs []string) {
+	if len(ctx.conf.Commands) == 0 {
 		fmt.Fprintf(os.Stderr, "There are no commands configured!\n")
 		os.Exit(1)
 	}
 	var cmd *config.Command
-	for _, c := range conf.Commands {
+	for _, c := range ctx.conf.Commands {
 		if c.Name == cmdName {
 			cmd = &c
 			break
@@ -174,7 +178,7 @@ func execCommand(cmdName string, cmdExtraArgs []string) {
 
 	if cmd == nil {
 		fmt.Fprintf(os.Stderr, "Valid commands are:\n")
-		for _, command := range conf.Commands {
+		for _, command := range ctx.conf.Commands {
 			fmt.Fprintf(os.Stderr, "    %s\n", command.Name)
 		}
 		os.Exit(1)
@@ -192,34 +196,40 @@ func execCommand(cmdName string, cmdExtraArgs []string) {
 	os.Exit(exitCode)
 }
 
-type program struct{}
+type osService struct {
+	ctx *context
+}
 
-func (p *program) Start(s service.Service) error {
+func (o *osService) Start(s service.Service) error {
 	msg := fmt.Sprintf("Service '%s' started.", serviceName())
-	logger.Printf(msg)
+	o.ctx.logger.Printf(msg)
 	sysLogger, err := s.Logger(nil)
 	if err != nil {
 		sysLogger.Info(msg)
 	}
 
-	doStart()
-
-	go watchForReload()
+	go watchForReload(o.ctx)
 	return nil
 }
 
-func (p *program) Stop(s service.Service) error {
-	logger.Printf(fmt.Sprintf("Stopping '%s' service...", serviceName()))
+func doStart(ctx *context) {
+	execStartupTasks(ctx)
+	setupScheduledTasks(ctx)
+	startServices(ctx)
+}
 
-	doStop()
+func (o *osService) Stop(s service.Service) error {
+	o.ctx.logger.Printf(fmt.Sprintf("Stopping '%s' service...", serviceName()))
 
-	pidFile := conf.ServiceConfig.PidFile
+	doStop(o.ctx)
+
+	pidFile := o.ctx.conf.ServiceConfig.PidFile
 	if pidFile != "" {
 		os.Remove(pidFile)
 	}
 
 	msg := fmt.Sprintf("Stopped '%s' service.", serviceName())
-	logger.Printf(msg)
+	o.ctx.logger.Printf(msg)
 
 	sysLogger, err := s.Logger(nil)
 	if err != nil {
@@ -228,16 +238,9 @@ func (p *program) Stop(s service.Service) error {
 	return nil
 }
 
-func doStart() {
-	terminate = make(chan struct{})
-	execStartupTasks()
-	setupScheduledTasks()
-	startServices()
-}
-
-func doStop() {
+func doStop(ctx *context) {
 	// Create stop file... another method to signal services to stop.
-	stopFile := conf.ServiceConfig.StopFile
+	stopFile := ctx.conf.ServiceConfig.StopFile
 	if stopFile == "" {
 		stopFile = ".stop"
 	}
@@ -246,17 +249,17 @@ func doStop() {
 	}
 	ioutil.WriteFile(stopFile, nil, 0644)
 	defer os.Remove(stopFile)
-	if cronManager != nil {
-		cronManager.Stop()
+	if ctx.cronManager != nil {
+		ctx.cronManager.Stop()
 	}
-	if terminate != nil {
-		close(terminate)
+	if ctx.terminate != nil {
+		close(ctx.terminate)
 	}
-	done.Wait()
+	ctx.runningGroup.Wait()
 }
 
-func watchForReload() {
-	f := conf.ServiceConfig.ReloadFile
+func watchForReload(ctx *context) {
+	f := ctx.conf.ServiceConfig.ReloadFile
 	if f == "" {
 		f = ".reload"
 	}
@@ -268,31 +271,31 @@ func watchForReload() {
 		time.Sleep(defaultRefreshPoll)
 		if _, err := os.Stat(f); err == nil {
 			if err := os.Remove(f); err == nil {
-				logger.Printf("Reload requested")
-				doStop()
+				ctx.logger.Printf("Reload requested")
+				doStop(ctx)
 				time.Sleep(time.Second)
-				conf, _ = loadConf()
-				doStart()
+				ctx.conf, _ = loadConf()
+				doStart(ctx)
 			}
 		}
 	}
 }
 
-func execStartupTasks() {
-	for _, task := range conf.StartupTasks {
+func execStartupTasks(ctx *context) {
+	for _, task := range ctx.conf.StartupTasks {
 		runTask := func(task config.StartupTask) {
-			done.Add(1)
-			defer done.Done()
-			taskConfig := createTaskConfig(task.Task)
-			if exitCode, err := svcutil.ExecuteTask(terminate, taskConfig); err != nil {
-				logger.Printf("ERROR: Startup task '%s' reported: %v", taskConfig.Path, err)
+			defer ctx.runningGroup.Done()
+			taskConfig := createTaskConfig(ctx, task.Task)
+			if exitCode, err := svcutil.ExecuteTask(ctx.terminate, taskConfig); err != nil {
+				ctx.logger.Printf("ERROR: Startup task '%s' reported: %v", taskConfig.Path, err)
 			} else {
-				logger.Printf("The task exits with exit code %d", exitCode)
+				ctx.logger.Printf("The task exits with exit code %d", exitCode)
 			}
 		}
+		ctx.runningGroup.Add(1)
 		if task.Async {
 			if task.StartupDelaySecs > 0 || task.StartupRandomDelaySecs > 0 {
-				logger.Printf("WARNING: Only Async startup tasks may have startup delays.")
+				ctx.logger.Printf("WARNING: Only Async startup tasks may have startup delays.")
 			}
 			go runTask(task)
 		} else {
@@ -301,17 +304,17 @@ func execStartupTasks() {
 	}
 }
 
-func startServices() {
-	for _, service := range conf.Services {
+func startServices(ctx *context) {
+	for _, service := range ctx.conf.Services {
+		ctx.runningGroup.Add(1)
 		go func(service config.Service) {
-			done.Add(1)
-			defer done.Done()
+			defer ctx.runningGroup.Done()
 			svcConfig := svcutil.ServiceConfig{}
 			svcConfig.Path = service.Path
 			svcConfig.Args = service.Args
 			svcConfig.GracefulShutDown = time.Duration(service.GracefulShutdownTimeout) * time.Second
 			svcConfig.StartupDelay = time.Duration(service.StartupDelaySecs) * time.Second
-			svcConfig.Logger = logger
+			svcConfig.Logger = ctx.logger
 			svcConfig.CrashConfig = svcutil.CrashConfig{
 				MaxCountPerHour: service.MaxCrashCount,
 				RestartDelay:    time.Duration(service.RestartDelaySecs) * time.Second,
@@ -323,42 +326,41 @@ func startServices() {
 				Timeout:               time.Duration(service.MonitorPing.TimeoutSecs) * time.Second,
 				RestartOnFailureCount: service.MonitorPing.RestartOnFailureCount,
 			}
-			if err := svcutil.ExecuteService(terminate, svcConfig); err != nil {
-				logger.Printf("ERROR: Service '%s' reported: %v", service.Path, err)
-
+			if err := svcutil.ExecuteService(ctx.terminate, svcConfig); err != nil {
+				ctx.logger.Printf("ERROR: Service '%s' reported: %v", service.Path, err)
 			}
 		}(service)
 	}
 }
 
-func createTaskConfig(task config.Task) svcutil.TaskConfig {
+func createTaskConfig(ctx *context, task config.Task) svcutil.TaskConfig {
 	taskConfig := svcutil.TaskConfig{}
 	taskConfig.Path = pathutils.FindLastFile(task.Path)
 	taskConfig.Args = task.Args
 	taskConfig.ExecTimeout = time.Duration(task.TimeoutSecs) * time.Second
 	taskConfig.StartupDelay = time.Duration(task.StartupDelaySecs) * time.Second
 	taskConfig.StartupRandomDelay = time.Duration(task.StartupRandomDelaySecs) * time.Second
-	taskConfig.Logger = logger // TODO: Global?????
+	taskConfig.Logger = ctx.logger
 	return taskConfig
 }
 
-func setupScheduledTasks() {
-	cronManager = cron.New()
-	for _, scheduledTask := range conf.ScheduledTasks {
-		taskConfig := createTaskConfig(scheduledTask.Task)
+func setupScheduledTasks(ctx *context) {
+	ctx.cronManager = cron.New()
+	for _, scheduledTask := range ctx.conf.ScheduledTasks {
+		taskConfig := createTaskConfig(ctx, scheduledTask.Task)
+		ctx.runningGroup.Add(1)
 		runTask := func() {
-			done.Add(1)
-			defer done.Done()
-			if exitCode, err := svcutil.ExecuteTask(terminate, taskConfig); err != nil {
-				logger.Printf("ERROR: scheduled task '%s' reported: %v", taskConfig.Path, err)
+			defer ctx.runningGroup.Done()
+			if exitCode, err := svcutil.ExecuteTask(ctx.terminate, taskConfig); err != nil {
+				ctx.logger.Printf("ERROR: scheduled task '%s' reported: %v", taskConfig.Path, err)
 			} else {
-				logger.Printf("The task exits with exit code %d", exitCode)
+				ctx.logger.Printf("The task exits with exit code %d", exitCode)
 			}
 		}
-		err := cronManager.AddFunc(scheduledTask.Schedule, runTask)
+		err := ctx.cronManager.AddFunc(scheduledTask.Schedule, runTask)
 		if err != nil {
-			logger.Printf("Unable to schedule task '%s': %v", scheduledTask.Path, err)
+			ctx.logger.Printf("Unable to schedule task '%s': %v", scheduledTask.Path, err)
 		}
 	}
-	cronManager.Start()
+	ctx.cronManager.Start()
 }
