@@ -313,8 +313,8 @@ func startServices() {
 			svcConfig.StartupDelay = time.Duration(service.StartupDelaySecs) * time.Second
 			svcConfig.Logger = logger
 			svcConfig.CrashConfig = svcutil.CrashConfig{
-				MaxCount:     service.MaxCrashCount,
-				RestartDelay: time.Duration(service.RestartDelaySecs) * time.Second,
+				MaxCountPerHour: service.MaxCrashCount,
+				RestartDelay:    time.Duration(service.RestartDelaySecs) * time.Second,
 			}
 			svcConfig.MonitorConfig = svcutil.MonitorConfig{
 				URL:                   service.MonitorPing.URL,

@@ -13,8 +13,8 @@ import (
 	"log"
 	"math/rand"
 	"os"
-	"time"
 	"path/filepath"
+	"time"
 
 	"github.com/papercutsoftware/silver/lib/procmngt"
 )
@@ -53,8 +53,8 @@ type ServiceConfig struct {
 }
 
 type CrashConfig struct {
-	MaxCount     int
-	RestartDelay time.Duration
+	MaxCountPerHour int
+	RestartDelay    time.Duration
 }
 
 func ExecuteTask(terminate chan struct{}, taskConf TaskConfig) (exitCode int, err error) {
@@ -88,7 +88,10 @@ type logWriter struct {
 }
 
 func (l *logWriter) Write(p []byte) (int, error) {
-	l.logger.Printf("%s : %s", l.prefix, string(p)) // We assume that this operation always succeeds
+	if l.logger != nil {
+		// We assume that this operation always succeeds
+		l.logger.Printf("%s : %s", l.prefix, string(p))
+	}
 	return len(p), nil
 }
 
@@ -115,7 +118,8 @@ type crashHandlingExecutable struct {
 
 func (che *crashHandlingExecutable) Executable(terminate chan struct{}) (exitCode int, err error) {
 	crashCount := 0
-	var crashStart time.Time
+	start := time.Now()
+	max := che.svcConfig.CrashConfig.MaxCountPerHour
 	for {
 		execConf := procmngt.ExecConfig{
 			Path:             che.svcConfig.Path,
@@ -126,17 +130,22 @@ func (che *crashHandlingExecutable) Executable(terminate chan struct{}) (exitCod
 			Stderr:           &logWriter{prefix: fmt.Sprintf("%s | STDERR", che.serviceName), logger: che.svcConfig.Logger},
 		}
 		executable := procmngt.NewExecutable(execConf)
-		exitCode, err := executable.Execute(terminate)
-		if err != nil || exitCode != 0 {
-			if crashCount == 0 {
-				crashStart = time.Now()
-			}
-			crashCount++
+		exitCode, err = executable.Execute(terminate)
+
+		// Increment resetting every hour
+		crashCount++
+		if time.Since(start) > 1*time.Hour {
+			start = time.Now()
+			crashCount = 0
 		}
-		if crashCount > che.svcConfig.CrashConfig.MaxCount && time.Since(crashStart) > 1*time.Hour {
+		if max > 1 && crashCount >= max {
 			break
 		}
-		time.Sleep(che.svcConfig.CrashConfig.RestartDelay)
+		select {
+		case <-terminate:
+			break
+		case <-time.After(che.svcConfig.CrashConfig.RestartDelay):
+		}
 	}
-	return 1, errors.New("Max restart exceeded")
+	return exitCode, errors.New("Max crash count exceeded")
 }
