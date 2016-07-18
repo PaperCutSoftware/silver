@@ -10,7 +10,8 @@ import (
 )
 
 func TestStandardLogging(t *testing.T) {
-	lname := fmt.Sprintf("test-standard-loggin-%d.log", time.Now().Unix())
+	lname := fmt.Sprintf("%s/test-standard-log-%d.log", os.TempDir(), time.Now().Unix())
+
 	logger := NewFileLogger(lname)
 	defer func() {
 		CloseAllOpenFileLoggers()
@@ -31,7 +32,7 @@ func TestStandardLogging(t *testing.T) {
 }
 
 func TestRollingLog(t *testing.T) {
-	lname := fmt.Sprintf("test-rolling-log-%d.log", time.Now().Unix())
+	lname := fmt.Sprintf("%s/test-rolling-log-%d.log", os.TempDir(), time.Now().Unix())
 	rname := lname + ".1"
 
 	logger := NewFileLoggerWithMaxSize(lname, 1024)
@@ -62,5 +63,33 @@ func TestRollingLog(t *testing.T) {
 	}
 	if !strings.Contains(string(rolledOutput), msg) {
 		t.Errorf("Expected '%s', got '%s'", msg, rolledOutput)
+	}
+}
+
+func TestRollingLogFlush_IsFlushed(t *testing.T) {
+	// Arrange
+	//lname := fmt.Sprintf("%s/test-flushed-log-%d.log", os.TempDir(), time.Now().Unix())
+	lname := fmt.Sprintf("test-flushed-log-%d.log", time.Now().Unix())
+	logger := NewFileLoggerWithMaxSize(lname, 10024)
+	defer func() {
+		CloseAllOpenFileLoggers()
+		os.Remove(lname)
+	}()
+
+	// Act
+	msg := "TestRollingLog"
+	for i := 0; i < 100; i++ {
+		logger.Printf("%s-%d", msg, i)
+	}
+	logger.Printf("x")
+	//time.Sleep(6 * time.Second)
+
+	// Assert
+	output, err := ioutil.ReadFile(lname)
+	if err != nil {
+		t.Fatalf("Error reading log: %v", err)
+	}
+	if !strings.Contains(string(output), "x") {
+		t.Errorf("Expected 'x' in file. It did not flush in time")
 	}
 }

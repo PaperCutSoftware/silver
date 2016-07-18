@@ -18,31 +18,70 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"runtime"
 	"sync"
+	"time"
 )
 
 const (
-	defaultMaxSize = 10 * 1024 * 1024 // 10 MB
+	defaultMaxSize       = 10 * 1024 * 1024 // 10 MB
+	defaultFlushInterval = 5 * time.Second
 )
 
 var (
 	openLogFiles = make(map[string]*os.File)
 )
 
+// Why a wrapper - see finalizer comment below.
+type rollingFileWrapper struct {
+	*rollingFile
+}
+
 type rollingFile struct {
-	name        string
-	maxSize     int64
-	mu          sync.Mutex
-	currentFile *os.File
-	currentSize int64
+	name                string
+	maxSize             int64
+	mu                  sync.Mutex
+	currentFile         *os.File
+	bytesSinceLastFlush int64
+	currentSize         int64
+	flusher             *flusher
+}
+
+type flusher struct {
+	interval time.Duration
+	stop     chan struct{}
+}
+
+func (f *flusher) run(rf *rollingFile) {
+	tick := time.Tick(f.interval)
+	for {
+		select {
+		case <-tick:
+			rf.flush()
+		case <-f.stop:
+			return
+		}
+	}
+}
+
+func stopFlusher(rfw *rollingFileWrapper) {
+	close(rfw.flusher.stop)
 }
 
 func newRollingFile(name string, maxSize int64) (rf *rollingFile, err error) {
 	if maxSize <= 0 {
 		maxSize = defaultMaxSize
 	}
-	rf = &rollingFile{name: name, maxSize: maxSize}
+	rf = &rollingFile{
+		name:    name,
+		maxSize: maxSize,
+		flusher: &flusher{
+			interval: defaultFlushInterval,
+			stop:     make(chan struct{}),
+		},
+	}
 	err = rf.open()
+	go rf.flusher.run(rf)
 	return
 }
 
@@ -55,7 +94,17 @@ func (rf *rollingFile) Write(p []byte) (n int, err error) {
 	}
 	n, err = rf.currentFile.Write(p)
 	rf.currentSize += int64(n)
+	rf.bytesSinceLastFlush += int64(n)
 	return
+}
+
+func (rf *rollingFile) flush() {
+	rf.mu.Lock()
+	if rf.bytesSinceLastFlush > 0 {
+		rf.currentFile.Sync()
+		rf.bytesSinceLastFlush = 0
+	}
+	rf.mu.Unlock()
 }
 
 func (rf *rollingFile) open() error {
@@ -96,8 +145,14 @@ func NewFileLogger(file string) (logger *log.Logger) {
 
 func NewFileLoggerWithMaxSize(file string, maxSize int64) (logger *log.Logger) {
 	rf, err := newRollingFile(file, maxSize)
+	// This trick ensures that the flusher goroutine does not keep
+	// the returned wrapper object from being garbage collected. When it is
+	// garbage collected, the finalizer stops the janitor goroutine, after
+	// which rw can be collected.
+	rfWrapper := &rollingFileWrapper{rf}
+	runtime.SetFinalizer(rfWrapper, stopFlusher)
 	if err == nil {
-		logger = log.New(rf, "", log.Ldate|log.Ltime)
+		logger = log.New(rfWrapper, "", log.Ldate|log.Ltime)
 	} else {
 		fmt.Fprintf(os.Stderr, "WARNING: Unable to set up log file: %v\n", err)
 		logger = NewNilLogger()
