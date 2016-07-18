@@ -8,12 +8,15 @@
 package svcutil_test
 
 import (
+	"bytes"
 	"io/ioutil"
+	"log"
 	"os"
 	"os/exec"
 	"path"
 	"path/filepath"
 	"runtime"
+	"strings"
 	"testing"
 	"time"
 
@@ -22,7 +25,7 @@ import (
 
 func Test_ExecuteRandomStartupDelayTask(t *testing.T) {
 	// Arrange
-	tmpDir, testExe := makeHelloWorld(t)
+	tmpDir, testExe := makeHelloWorldExe(t)
 	defer os.RemoveAll(tmpDir)
 	delay := time.Duration(1 * time.Second)
 	randomDelay := time.Duration(1 * time.Second)
@@ -48,10 +51,154 @@ func Test_ExecuteRandomStartupDelayTask(t *testing.T) {
 	}
 }
 
-func makeHelloWorld(t *testing.T) (tmpDir, testExe string) {
+func Test_ExecuteTask_ExecTimeout(t *testing.T) {
+	// Arrange
+	const timeout = 1 * time.Second
+	tmpDir, testExe := makeHelloForeverExe(t)
+	defer os.RemoveAll(tmpDir)
+	taskConf := svcutil.TaskConfig{
+		Path:        testExe,
+		ExecTimeout: timeout,
+	}
+	start := time.Now()
+
+	// Act
+	svcutil.ExecuteTask(nil, taskConf)
+
+	// Assert
+	elapsed := time.Since(start)
+	threshold := time.Duration(200 * time.Millisecond)
+	if elapsed > timeout+threshold {
+		t.Fatalf("Elapse time longer than expected.  Took: %v", elapsed)
+	}
+
+	if elapsed < timeout {
+		t.Fatalf("Did not expect task to run shorter than our timeout")
+	}
+}
+
+func Test_ExecuteTask_GracefulShutDown_OK(t *testing.T) {
+	// Arrange
+	const shutdownIn = 1 * time.Second
+	tmpDir, testExe := makeHelloForeverExe(t)
+	defer os.RemoveAll(tmpDir)
+	taskConf := svcutil.TaskConfig{
+		Path:             testExe,
+		GracefulShutDown: 10 * time.Second,
+	}
+	start := time.Now()
+
+	terminate := make(chan struct{})
+
+	// Act
+	go func() {
+		time.Sleep(shutdownIn)
+		close(terminate)
+	}()
+	svcutil.ExecuteTask(terminate, taskConf)
+
+	// Assert
+	elapsed := time.Since(start)
+	threshold := time.Duration(700 * time.Millisecond)
+	if elapsed > shutdownIn+threshold {
+		t.Fatalf("Elapse time longer than expected.  Took: %v", elapsed)
+	}
+
+	if elapsed < shutdownIn {
+		t.Fatalf("Did not expect task to run shorter than our timeout")
+	}
+}
+
+func Test_ExecuteTask_GracefulShutDown_HardKill(t *testing.T) {
+	// Arrange
+	const shutdownIn = 1 * time.Second
+	const gracefulTime = 5 * time.Second
+	tmpDir, testExe := makeHelloForeverNoShutdownExe(t)
+	defer os.RemoveAll(tmpDir)
+	taskConf := svcutil.TaskConfig{
+		Path:             testExe,
+		GracefulShutDown: gracefulTime,
+	}
+	start := time.Now()
+
+	terminate := make(chan struct{})
+
+	// Act
+	go func() {
+		time.Sleep(shutdownIn)
+		close(terminate)
+	}()
+	svcutil.ExecuteTask(terminate, taskConf)
+
+	// Assert
+	elapsed := time.Since(start)
+	threshold := time.Duration(500 * time.Millisecond)
+	if elapsed > shutdownIn+gracefulTime+threshold {
+		t.Fatalf("Elapse time longer than expected.  Took: %v", elapsed)
+	}
+
+	if elapsed < shutdownIn+gracefulTime {
+		t.Fatalf("Did not expect task to run shorter than our timeout. Took: %v", elapsed)
+	}
+}
+
+func Test_ExecuteTask_Logger(t *testing.T) {
+	// Arrange
+	tmpDir, testExe := makeHelloForeverExe(t)
+	defer os.RemoveAll(tmpDir)
+
+	var logBuf bytes.Buffer
+
+	taskConf := svcutil.TaskConfig{
+		Path:             testExe,
+		ExecTimeout:      2 * time.Second,
+		GracefulShutDown: 1 * time.Second,
+		Logger:           log.New(&logBuf, "", 0),
+	}
+
+	// Act
+	svcutil.ExecuteTask(nil, taskConf)
+
+	// Assert
+	output := logBuf.String()
+	if len(output) == 0 {
+		t.Fatalf("Expected logging output")
+	}
+
+	if !strings.Contains(output, "Hello World") {
+		t.Errorf("Expected 'Hello' in logging output")
+	}
+}
+
+func Test_ExecuteService_CrashConfig_RestartDelay(t *testing.T) {
+
+}
+
+func Test_ExecuteService_CrashConfig_MaxCount(t *testing.T) {
+}
+
+func makeHelloWorldExe(t *testing.T) (tmpDir, testExe string) {
 	_, thisFile, _, _ := runtime.Caller(0)
-	helloWorldGo := path.Dir(thisFile) + "/testexes/helloworld.go"
-	return makeTestExe(t, helloWorldGo)
+	src := path.Dir(thisFile) + "/testexes/helloworld.go"
+	return makeTestExe(t, src)
+}
+
+func makeHelloForeverExe(t *testing.T) (tmpDir, testExe string) {
+	_, thisFile, _, _ := runtime.Caller(0)
+	src := path.Dir(thisFile) + "/testexes/helloforever.go"
+	return makeTestExe(t, src)
+}
+
+func makeHelloForeverNoShutdownExe(t *testing.T) (tmpDir, testExe string) {
+	_, thisFile, _, _ := runtime.Caller(0)
+	src := path.Dir(thisFile) + "/testexes/helloforever-no-shutdown.go"
+	return makeTestExe(t, src)
+}
+
+func makeCrashExe(t *testing.T) (tmpDir, testExe string) {
+	_, thisFile, _, _ := runtime.Caller(0)
+	src := path.Dir(thisFile) + "/testexes/crash.go"
+	return makeTestExe(t, src)
 }
 
 func makeTestExe(t *testing.T, testSrc string) (tmpDir, testExe string) {

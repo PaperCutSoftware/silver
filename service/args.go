@@ -56,7 +56,7 @@ var aliases = map[string]string{
 func normalizeArgs(args []string) []string {
 	normalized := make([]string, len(args))
 	copy(normalized, args)
-	if len(out) <= 1 {
+	if len(normalized) <= 1 {
 		return args
 	}
 
