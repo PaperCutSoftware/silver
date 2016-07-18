@@ -166,7 +166,7 @@ func Test_ExecuteTask_Logger(t *testing.T) {
 	}
 
 	if !strings.Contains(output, "Hello World") {
-		t.Errorf("Expected 'Hello' in logging output")
+		t.Errorf("Expected 'Hello World' in logging output")
 	}
 }
 
