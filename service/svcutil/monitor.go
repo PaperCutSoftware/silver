@@ -31,7 +31,7 @@ func (sm *serviceMonitor) start(terminate chan struct{}) chan struct{} {
 	go func() {
 		time.Sleep(sm.config.StartupDelay)
 		failureCount := 0
-		isTerminate:
+	isTerminate:
 		for {
 			select {
 			case <-time.After(sm.config.Interval):

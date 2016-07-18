@@ -15,6 +15,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
@@ -171,10 +172,74 @@ func Test_ExecuteTask_Logger(t *testing.T) {
 }
 
 func Test_ExecuteService_CrashConfig_RestartDelay(t *testing.T) {
+	// Arrange
+	const shutdownIn = 3 * time.Second
+	tmpDir, testExe := makeCrashExe(t)
+	defer os.RemoveAll(tmpDir)
 
+	var logBuf bytes.Buffer
+
+	serviceConf := svcutil.ServiceConfig{
+		Path:   testExe,
+		Logger: log.New(&logBuf, "", 0),
+		CrashConfig: svcutil.CrashConfig{
+			RestartDelay: 2 * time.Second,
+		},
+	}
+
+	terminate := make(chan struct{})
+
+	// Act
+	go func() {
+		time.Sleep(shutdownIn)
+		close(terminate)
+	}()
+	svcutil.ExecuteService(terminate, serviceConf)
+
+	// Assert
+	output := logBuf.String()
+	if len(output) == 0 {
+		t.Fatalf("Expected logging output")
+	}
+	// Find "CRASHED" twice
+	crashedTimes := len(regexp.MustCompile("CRASHED").FindAllString(output, -1))
+	if crashedTimes != 2 {
+		t.Errorf("Expected it to crash twice.  Got: %v", crashedTimes)
+	}
 }
 
 func Test_ExecuteService_CrashConfig_MaxCount(t *testing.T) {
+	// Arrange
+	tmpDir, testExe := makeCrashExe(t)
+	defer os.RemoveAll(tmpDir)
+
+	var logBuf bytes.Buffer
+
+	serviceConf := svcutil.ServiceConfig{
+		Path:   testExe,
+		Logger: log.New(&logBuf, "", 0),
+		CrashConfig: svcutil.CrashConfig{
+			MaxCountPerHour: 5,
+		},
+	}
+
+	// Act
+	err := svcutil.ExecuteService(nil, serviceConf)
+
+	// Assert
+	if err != nil {
+		t.Errorf("Expected error")
+	}
+
+	output := logBuf.String()
+	if len(output) == 0 {
+		t.Fatalf("Expected logging output")
+	}
+	// Find "CRASHED" twice
+	crashedTimes := len(regexp.MustCompile("CRASHED").FindAllString(output, -1))
+	if crashedTimes != 5 {
+		t.Errorf("Expected it to crash 5 times.  Got: %v", crashedTimes)
+	}
 }
 
 func makeHelloWorldExe(t *testing.T) (tmpDir, testExe string) {

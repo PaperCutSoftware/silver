@@ -87,6 +87,7 @@ func sendWMQuit(pid int) error {
 	procGetWindowThreadProcessId := user32.NewProc("GetWindowThreadProcessId")
 	procPostMessage := user32.NewProc("PostMessageW")
 
+	// FIXME: Do we need to unregister the callback?
 	quitCallback := syscall.NewCallback(func(hwnd syscall.Handle, lparam uintptr) uintptr {
 		pid := int(lparam)
 		// Does the window belong to our PID?

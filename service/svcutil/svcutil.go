@@ -98,15 +98,26 @@ func (l *logWriter) Write(p []byte) (int, error) {
 func ExecuteService(terminate chan struct{}, svcConfig ServiceConfig) error {
 	serviceName := exeName(svcConfig.Path)
 	crashHandlingExec := &crashHandlingExecutable{serviceName: serviceName, svcConfig: svcConfig}
-	monitor := &serviceMonitor{serviceName: serviceName, config: svcConfig.MonitorConfig, logger: svcConfig.Logger}
-	t := make(chan struct{})
-	go func() {
-		select {
-		case <-terminate:
-		case <-monitor.start(terminate):
+	var t chan struct{}
+	if svcConfig.MonitorConfig.URL != "" && svcConfig.MonitorConfig.Interval > 0 {
+		// Wrap our terminate channel in a monitor
+		monitor := &serviceMonitor{
+			serviceName: serviceName,
+			config:      svcConfig.MonitorConfig,
+			logger:      svcConfig.Logger,
 		}
-		close(t)
-	}()
+		t = make(chan struct{})
+		go func() {
+			select {
+			case <-terminate:
+			case <-monitor.start(terminate):
+			}
+			close(t)
+		}()
+	} else {
+		// No monitoring setup, just pass in terminate
+		t = terminate
+	}
 	_, err := crashHandlingExec.Executable(t)
 	return err
 }
@@ -118,8 +129,13 @@ type crashHandlingExecutable struct {
 
 func (che *crashHandlingExecutable) Executable(terminate chan struct{}) (exitCode int, err error) {
 	crashCount := 0
-	start := time.Now()
 	max := che.svcConfig.CrashConfig.MaxCountPerHour
+	restartDelay := che.svcConfig.CrashConfig.RestartDelay
+	if restartDelay == 0 {
+		restartDelay = time.Millisecond
+	}
+	start := time.Now()
+restartLoop:
 	for {
 		execConf := procmngt.ExecConfig{
 			Path:             che.svcConfig.Path,
@@ -139,11 +155,11 @@ func (che *crashHandlingExecutable) Executable(terminate chan struct{}) (exitCod
 			crashCount = 0
 		}
 		if max > 1 && crashCount >= max {
-			break
+			break restartLoop
 		}
 		select {
 		case <-terminate:
-			break
+			break restartLoop
 		case <-time.After(che.svcConfig.CrashConfig.RestartDelay):
 		}
 	}
