@@ -5,19 +5,18 @@ import (
 	"strings"
 )
 
-
 func parse(args []string) (action string, actionArgs []string, err error) {
-	normalizeArgs(args)
+	args = normalizeArgs(args)
 
 	if !isArgsValid(args) {
 		return "", nil, errors.New("Invalid arguments")
 	}
 
 	if len(args) >= 2 {
-		action = args[2]
+		action = args[1]
 	}
 	if len(args) >= 3 {
-		actionArgs = args[3:]
+		actionArgs = args[2:]
 	}
 	return action, actionArgs, nil
 }
@@ -54,15 +53,18 @@ var aliases = map[string]string{
 	"test":   "validate",
 }
 
-func normalizeArgs(args []string) {
-	if len(args) <= 1 {
-		return
+func normalizeArgs(args []string) []string {
+	normalized := make([]string, len(args))
+	copy(normalized, args)
+	if len(out) <= 1 {
+		return args
 	}
 
 	// Strip off any off the standard prefixes on first arg
-	args[1] = strings.TrimLeft(args[1], "-/")
+	normalized[1] = strings.TrimLeft(normalized[1], "-/")
 
-	if alias, ok := aliases[args[1]]; ok {
-		args[1] = alias
+	if alias, ok := aliases[normalized[1]]; ok {
+		normalized[1] = alias
 	}
+	return normalized
 }
