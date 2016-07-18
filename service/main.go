@@ -208,7 +208,9 @@ func (o *osService) Start(s service.Service) error {
 		sysLogger.Info(msg)
 	}
 
+	doStart(o.ctx)
 	go watchForReload(o.ctx)
+
 	return nil
 }
 
@@ -294,11 +296,11 @@ func execStartupTasks(ctx *context) {
 		}
 		ctx.runningGroup.Add(1)
 		if task.Async {
-			if task.StartupDelaySecs > 0 || task.StartupRandomDelaySecs > 0 {
-				ctx.logger.Printf("WARNING: Only Async startup tasks may have startup delays.")
-			}
 			go runTask(task)
 		} else {
+			if task.StartupDelaySecs > 0 || task.StartupRandomDelaySecs > 0 {
+				ctx.logger.Printf("WARNING: Only Async startup tasks should have startup delays.")
+			}
 			runTask(task)
 		}
 	}
@@ -319,12 +321,14 @@ func startServices(ctx *context) {
 				MaxCountPerHour: service.MaxCrashCount,
 				RestartDelay:    time.Duration(service.RestartDelaySecs) * time.Second,
 			}
-			svcConfig.MonitorConfig = svcutil.MonitorConfig{
-				URL:                   service.MonitorPing.URL,
-				StartupDelay:          time.Duration(service.MonitorPing.StartupDelaySecs) * time.Second,
-				Interval:              time.Duration(service.MonitorPing.IntervalSecs) * time.Second,
-				Timeout:               time.Duration(service.MonitorPing.TimeoutSecs) * time.Second,
-				RestartOnFailureCount: service.MonitorPing.RestartOnFailureCount,
+			if service.MonitorPing != nil {
+				svcConfig.MonitorConfig = svcutil.MonitorConfig{
+					URL:                   service.MonitorPing.URL,
+					StartupDelay:          time.Duration(service.MonitorPing.StartupDelaySecs) * time.Second,
+					Interval:              time.Duration(service.MonitorPing.IntervalSecs) * time.Second,
+					Timeout:               time.Duration(service.MonitorPing.TimeoutSecs) * time.Second,
+					RestartOnFailureCount: service.MonitorPing.RestartOnFailureCount,
+				}
 			}
 			if err := svcutil.ExecuteService(ctx.terminate, svcConfig); err != nil {
 				ctx.logger.Printf("ERROR: Service '%s' reported: %v", service.Path, err)
