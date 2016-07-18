@@ -39,15 +39,18 @@ func (sm *serviceMonitor) start(terminate chan struct{}) chan struct{} {
 				break isTerminate
 			}
 			ok, err := pingURL(sm.config.URL, sm.config.Timeout)
-			if err != nil {
-				sm.logger.Printf("%s: Monitor ping error '%v'", sm.serviceName, err)
+			if ok {
+				// Did the monitor report another error?
+				if err != nil {
+					sm.logf("%s: Monitor ping error '%v'", sm.serviceName, err)
+				}
 				failureCount = 0
-			} else if !ok {
+			} else {
 				failureCount++
-				sm.logger.Printf("%s: Monitor detected error - '%v'", sm.serviceName, err)
+				sm.logf("%s: Monitor detected error - '%v'", sm.serviceName, err)
 			}
 			if failureCount > sm.config.RestartOnFailureCount {
-				sm.logger.Printf("%s: Service not responding. Forcing shutdown. (failures: %d)",
+				sm.logf("%s: Service not responding. Forcing shutdown. (failures: %d)",
 					sm.serviceName, failureCount)
 				break isTerminate
 			}
@@ -56,6 +59,12 @@ func (sm *serviceMonitor) start(terminate chan struct{}) chan struct{} {
 		close(monitor)
 	}()
 	return monitor
+}
+
+func (sm *serviceMonitor) logf(format string, v ...interface{}) {
+	if sm.logger != nil {
+		sm.logger.Printf(format, v...)
+	}
 }
 
 var pingFileCache = struct {
