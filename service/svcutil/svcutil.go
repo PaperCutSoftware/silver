@@ -8,6 +8,8 @@
 package svcutil
 
 import (
+	"bufio"
+	"bytes"
 	"errors"
 	"fmt"
 	"log"
@@ -97,12 +99,20 @@ func logf(l *log.Logger, exeName string, format string, v ...interface{}) {
 type logWriter struct {
 	logger *log.Logger
 	prefix string
+	buf    bytes.Buffer
 }
 
 func (l *logWriter) Write(p []byte) (int, error) {
-	if l.logger != nil {
-		// We assume that this operation always succeeds
-		l.logger.Printf("%s : %s", l.prefix, string(p))
+	if l.logger == nil {
+		return len(p), nil
+	}
+
+	// Write lines that we can find, otherwise leave in buffer
+	l.buf.Write(p)
+
+	scanner := bufio.NewScanner(&l.buf)
+	for scanner.Scan() {
+		l.logger.Printf("%s%s", l.prefix, scanner.Text())
 	}
 	return len(p), nil
 }
