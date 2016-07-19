@@ -106,7 +106,6 @@ func (l *logWriter) Write(p []byte) (int, error) {
 	if l.logger == nil {
 		return len(p), nil
 	}
-
 	// Write lines that we can find, otherwise leave in buffer
 	l.buf.Write(p)
 
