@@ -4,6 +4,10 @@
 // Use of this source code is governed by an MIT or GPL Version 2 license.
 // See the project's LICENSE file for more information.
 //
+// FUTURE: Parsing structs should be seperated from returns structs.  The
+//         return structs should have types like time.Duration, etc.
+//
+
 package config
 
 import (
@@ -45,11 +49,11 @@ type command struct {
 
 type Service struct {
 	command
-	GracefulShutdownTimeout int
-	MaxCrashCount           int
-	RestartDelaySecs        int
-	StartupDelaySecs        int
-	MonitorPing             *MonitorPing
+	GracefulShutdownTimeoutSecs int
+	MaxCrashCountPerHour        int
+	RestartDelaySecs            int
+	StartupDelaySecs            int
+	MonitorPing                 *MonitorPing
 }
 
 type MonitorPing struct {
@@ -93,7 +97,15 @@ func LoadConfig(path string, vars ReplacementVars) (conf *Config, err error) {
 	if _, err := os.Stat(path); os.IsNotExist(err) {
 		return nil, fmt.Errorf("The conf file does not exist. Please configuration here: %s", path)
 	}
-	return load(path, vars)
+	conf, err = load(path, vars)
+	if err != nil {
+		return nil, err
+	}
+	err = validate(conf)
+	if err != nil {
+		return nil, err
+	}
+	return conf, nil
 }
 
 // Merge in an include file.  Include files can contain services, tasks and commands
@@ -132,7 +144,36 @@ func load(path string, vars ReplacementVars) (conf *Config, err error) {
 		return nil, err
 	}
 
+	applyDefaults(conf)
+
 	return conf, nil
+}
+
+func validate(conf *Config) error {
+	if conf.ServiceDescription.DisplayName == "" {
+		return fmt.Errorf("ServiceDescription.DisplayName is required configuration")
+	}
+	return nil
+}
+
+func applyDefaults(conf *Config) {
+	if conf.ServiceConfig.StopFile == "" {
+		conf.ServiceConfig.StopFile = ".stop"
+	}
+	if conf.ServiceConfig.ReloadFile == "" {
+		conf.ServiceConfig.ReloadFile = ".reload"
+	}
+
+	if conf.ServiceConfig.LogFileMaxSizeMb == 0 {
+		conf.ServiceConfig.LogFileMaxSizeMb = 50
+	}
+
+	// Default graceful is 5 seconds
+	for i := range conf.Services {
+		if conf.Services[i].GracefulShutdownTimeoutSecs == 0 {
+			conf.Services[i].GracefulShutdownTimeoutSecs = 5
+		}
+	}
 }
 
 func replaceVars(in string, replacements map[string]string) (out string) {

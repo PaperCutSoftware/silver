@@ -45,7 +45,7 @@ func TestLocadConfig_ValidConfig(t *testing.T) {
             {
                 "Path" : "test/path/1",
                 "Args" : ["arg1", "arg2"],
-                "GracefulShutdownTimeout" : 12,
+                "GracefulShutdownTimeoutSecs" : 12,
                 "MaxCrashCount" : 999,
                 "RestartDelaySecs" : 1,
                 "MonitorPing" : {
@@ -151,6 +151,50 @@ func TestLocadConfig_ValidConfig(t *testing.T) {
 
 }
 
+func TestLocalConfig_Defaults_OK(t *testing.T) {
+	// Arrange
+	testConfig := `
+    {
+        "ServiceDescription" : {
+            "DisplayName" : "My Service",
+            "Description" : "My Service Desc"
+        },
+        "Services" : [
+            {
+                "Path" : "test/path/1"
+            },
+            {
+                "Path" : "test/path/2"
+            }
+        ]
+    }`
+	tmpFile := writeTestConfig(t, testConfig)
+	defer os.Remove(tmpFile)
+
+	vars := config.ReplacementVars{
+		ServiceName: "MyServiceName",
+		ServiceRoot: `C:\ProgramFiles\MyService`,
+	}
+
+	// Act
+	c, err := config.LoadConfig(tmpFile, vars)
+
+	// Assert
+	if err != nil {
+		t.Errorf("Error loading config: %v", err)
+	}
+
+	if !strings.Contains(c.ServiceConfig.StopFile, ".stop") {
+		t.Errorf("Expected default StopFile=.stop")
+	}
+
+	for _, service := range c.Services {
+		if service.GracefulShutdownTimeoutSecs != 5 {
+			t.Errorf("Expected default GracefulShutdownTimeoutSecs=5")
+		}
+	}
+}
+
 func TestLoadConfig_MinimalConfig(t *testing.T) {
 	// Arrange
 	testConfig := `
@@ -204,7 +248,7 @@ func TestLoadConfig_IncompleteConfig_ShouldError(t *testing.T) {
             {
                 "Path" : "test/path/1",
                 "Args" : ["arg1", "arg2"],
-                "GracefulShutdownTimeout" : 12,
+                "GracefulShutdownTimeoutSecs" : 12,
                 "MaxCrashCount" : 999,
                 "RestartDelaySecs" : 1,
                 "MonitorPing" : {

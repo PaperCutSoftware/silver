@@ -11,6 +11,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"path"
 	"sync"
 	"time"
 
@@ -187,6 +188,7 @@ func execCommand(ctx *context, cmdName string, cmdExtraArgs []string) {
 	cmdConf := cmdutil.CommandConfig{}
 	cmdConf.Path = pathutils.FindLastFile(cmd.Path)
 	cmdConf.Args = cmd.Args
+	// FIXME: Maybe unit conversion should be in the config layer?
 	cmdConf.ExecTimeout = (time.Second * time.Duration(cmd.TimeoutSecs))
 
 	exitCode, err := cmdutil.Execute(cmdConf)
@@ -215,6 +217,10 @@ func (o *osService) Start(s service.Service) error {
 }
 
 func doStart(ctx *context) {
+	sf := stopFileName(ctx)
+	if sf != "" {
+		os.Remove(sf)
+	}
 	execStartupTasks(ctx)
 	setupScheduledTasks(ctx)
 	startServices(ctx)
@@ -240,17 +246,21 @@ func (o *osService) Stop(s service.Service) error {
 	return nil
 }
 
+func stopFileName(ctx *context) string {
+	stopFile := ctx.conf.ServiceConfig.StopFile
+	if stopFile != "disabled" {
+		return ""
+	}
+	return stopFile
+}
+
 func doStop(ctx *context) {
 	// Create stop file... another method to signal services to stop.
-	stopFile := ctx.conf.ServiceConfig.StopFile
-	if stopFile == "" {
-		stopFile = ".stop"
+	sf := stopFileName(ctx)
+	if sf != "" {
+		ioutil.WriteFile(sf, nil, 0644)
+		defer os.Remove(sf)
 	}
-	if stopFile == "disabled" {
-		return
-	}
-	ioutil.WriteFile(stopFile, nil, 0644)
-	defer os.Remove(stopFile)
 	if ctx.cronManager != nil {
 		ctx.cronManager.Stop()
 	}
@@ -262,12 +272,6 @@ func doStop(ctx *context) {
 
 func watchForReload(ctx *context) {
 	f := ctx.conf.ServiceConfig.ReloadFile
-	if f == "" {
-		f = ".reload"
-	}
-	if f == "disabled" {
-		return
-	}
 	for {
 		// FIXME: File system notification rather than polling?
 		time.Sleep(defaultRefreshPoll)
@@ -284,17 +288,19 @@ func watchForReload(ctx *context) {
 }
 
 func execStartupTasks(ctx *context) {
+	ctx.logger.Printf("Starting %d startup tasks.", len(ctx.conf.StartupTasks))
 	for _, task := range ctx.conf.StartupTasks {
 		runTask := func(task config.StartupTask) {
+			ctx.runningGroup.Add(1)
 			defer ctx.runningGroup.Done()
+			taskName := path.Base(task.Path)
 			taskConfig := createTaskConfig(ctx, task.Task)
 			if exitCode, err := svcutil.ExecuteTask(ctx.terminate, taskConfig); err != nil {
-				ctx.logger.Printf("ERROR: Startup task '%s' reported: %v", taskConfig.Path, err)
+				ctx.logger.Printf("ERROR: Startup task '%s' reported: %v", taskName, err)
 			} else {
-				ctx.logger.Printf("The task exits with exit code %d", exitCode)
+				ctx.logger.Printf("Startup task '%s' finished with exit code %d", taskName, exitCode)
 			}
 		}
-		ctx.runningGroup.Add(1)
 		if task.Async {
 			go runTask(task)
 		} else {
@@ -307,18 +313,20 @@ func execStartupTasks(ctx *context) {
 }
 
 func startServices(ctx *context) {
+	ctx.logger.Printf("Starting %d services.", len(ctx.conf.Services))
 	for _, service := range ctx.conf.Services {
-		ctx.runningGroup.Add(1)
 		go func(service config.Service) {
+			ctx.runningGroup.Add(1)
 			defer ctx.runningGroup.Done()
+			serviceName := path.Base(service.Path)
 			svcConfig := svcutil.ServiceConfig{}
-			svcConfig.Path = service.Path
+			svcConfig.Path = pathutils.FindLastFile(service.Path)
 			svcConfig.Args = service.Args
-			svcConfig.GracefulShutDown = time.Duration(service.GracefulShutdownTimeout) * time.Second
+			svcConfig.GracefulShutDown = time.Duration(service.GracefulShutdownTimeoutSecs) * time.Second
 			svcConfig.StartupDelay = time.Duration(service.StartupDelaySecs) * time.Second
 			svcConfig.Logger = ctx.logger
 			svcConfig.CrashConfig = svcutil.CrashConfig{
-				MaxCountPerHour: service.MaxCrashCount,
+				MaxCountPerHour: service.MaxCrashCountPerHour,
 				RestartDelay:    time.Duration(service.RestartDelaySecs) * time.Second,
 			}
 			if service.MonitorPing != nil {
@@ -331,7 +339,7 @@ func startServices(ctx *context) {
 				}
 			}
 			if err := svcutil.ExecuteService(ctx.terminate, svcConfig); err != nil {
-				ctx.logger.Printf("ERROR: Service '%s' reported: %v", service.Path, err)
+				ctx.logger.Printf("ERROR: Service '%s' reported: %v", serviceName, err)
 			}
 		}(service)
 	}
@@ -349,16 +357,19 @@ func createTaskConfig(ctx *context, task config.Task) svcutil.TaskConfig {
 }
 
 func setupScheduledTasks(ctx *context) {
+	ctx.logger.Printf("Setting up %d scheduled tasks.", len(ctx.conf.ScheduledTasks))
 	ctx.cronManager = cron.New()
 	for _, scheduledTask := range ctx.conf.ScheduledTasks {
 		taskConfig := createTaskConfig(ctx, scheduledTask.Task)
-		ctx.runningGroup.Add(1)
 		runTask := func() {
+			ctx.runningGroup.Add(1)
 			defer ctx.runningGroup.Done()
+			taskName := path.Base(taskConfig.Path)
+			ctx.logger.Printf("Running schedule task '%s'", taskName)
 			if exitCode, err := svcutil.ExecuteTask(ctx.terminate, taskConfig); err != nil {
-				ctx.logger.Printf("ERROR: scheduled task '%s' reported: %v", taskConfig.Path, err)
+				ctx.logger.Printf("ERROR: Scheduled task '%s' reported: %v", taskName, err)
 			} else {
-				ctx.logger.Printf("The task exits with exit code %d", exitCode)
+				ctx.logger.Printf("The task '%s' finished with exit code %d", taskName, exitCode)
 			}
 		}
 		err := ctx.cronManager.AddFunc(scheduledTask.Schedule, runTask)

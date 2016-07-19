@@ -63,23 +63,35 @@ func ExecuteTask(terminate chan struct{}, taskConf TaskConfig) (exitCode int, er
 		startupDelay = startupDelay + time.Duration(random.Int63n(taskConf.StartupRandomDelay.Nanoseconds()))
 	}
 
-	serviceName := exeName(taskConf.Path)
+	taskName := exeName(taskConf.Path)
 	execConf := procmngt.ExecConfig{
 		Path:             taskConf.Path,
 		Args:             taskConf.Args,
 		ExecTimeout:      taskConf.ExecTimeout,
 		GracefulShutDown: taskConf.GracefulShutDown,
 		StartupDelay:     startupDelay,
-		Stdout:           &logWriter{prefix: fmt.Sprintf("%s | STDOUT", serviceName), logger: taskConf.Logger},
-		Stderr:           &logWriter{prefix: fmt.Sprintf("%s | STDERR", serviceName), logger: taskConf.Logger},
+		Stdout:           &logWriter{prefix: fmt.Sprintf("%s: STDOUT|", taskName), logger: taskConf.Logger},
+		Stderr:           &logWriter{prefix: fmt.Sprintf("%s: STDERR|", taskName), logger: taskConf.Logger},
 	}
 
+	go func() {
+		<-terminate
+		logf(taskConf.Logger, taskName, "Stopping task...")
+	}()
+
 	executable := procmngt.NewExecutable(execConf)
+	logf(taskConf.Logger, taskName, "Starting task...")
 	return executable.Execute(terminate)
 }
 
 func exeName(path string) string {
 	return filepath.Base(path)
+}
+
+func logf(l *log.Logger, exeName string, format string, v ...interface{}) {
+	if l != nil {
+		l.Printf("%s: %s", exeName, fmt.Sprintf(format, v...))
+	}
 }
 
 type logWriter struct {
@@ -98,15 +110,20 @@ func (l *logWriter) Write(p []byte) (int, error) {
 func ExecuteService(terminate chan struct{}, svcConfig ServiceConfig) error {
 	serviceName := exeName(svcConfig.Path)
 	crashHandlingExec := &crashHandlingExecutable{serviceName: serviceName, svcConfig: svcConfig}
+	go func() {
+		<-terminate
+		logf(svcConfig.Logger, serviceName, "Stopping service...")
+	}()
 	var t chan struct{}
 	if svcConfig.MonitorConfig.URL != "" && svcConfig.MonitorConfig.Interval > 0 {
+		t = make(chan struct{})
 		// Wrap our terminate channel in a monitor
+		logf(svcConfig.Logger, serviceName, "Starting service with monitor %s", svcConfig.MonitorConfig.URL)
 		monitor := &serviceMonitor{
 			serviceName: serviceName,
 			config:      svcConfig.MonitorConfig,
 			logger:      svcConfig.Logger,
 		}
-		t = make(chan struct{})
 		go func() {
 			select {
 			case <-terminate:
@@ -115,7 +132,6 @@ func ExecuteService(terminate chan struct{}, svcConfig ServiceConfig) error {
 			close(t)
 		}()
 	} else {
-		// No monitoring setup, just pass in terminate
 		t = terminate
 	}
 	_, err := crashHandlingExec.Executable(t)
@@ -142,11 +158,17 @@ restartLoop:
 			Args:             che.svcConfig.Args,
 			GracefulShutDown: che.svcConfig.GracefulShutDown,
 			StartupDelay:     che.svcConfig.StartupDelay,
-			Stdout:           &logWriter{prefix: fmt.Sprintf("%s | STDOUT", che.serviceName), logger: che.svcConfig.Logger},
-			Stderr:           &logWriter{prefix: fmt.Sprintf("%s | STDERR", che.serviceName), logger: che.svcConfig.Logger},
+			Stdout:           &logWriter{prefix: fmt.Sprintf("%s: STDOUT|", che.serviceName), logger: che.svcConfig.Logger},
+			Stderr:           &logWriter{prefix: fmt.Sprintf("%s: STDERR|", che.serviceName), logger: che.svcConfig.Logger},
 		}
 		executable := procmngt.NewExecutable(execConf)
+		logf(che.svcConfig.Logger, che.serviceName, "Starting service...")
 		exitCode, err = executable.Execute(terminate)
+		if err != nil {
+			logf(che.svcConfig.Logger, che.serviceName, "Service returned error: %v", err)
+		} else {
+			logf(che.svcConfig.Logger, che.serviceName, "Service stopped with exit code %d", exitCode)
+		}
 
 		// Increment resetting every hour
 		crashCount++
@@ -155,6 +177,7 @@ restartLoop:
 			crashCount = 0
 		}
 		if max > 1 && crashCount >= max {
+			err = errors.New("Max crash count exceeded.")
 			break restartLoop
 		}
 		select {
@@ -162,6 +185,7 @@ restartLoop:
 			break restartLoop
 		case <-time.After(che.svcConfig.CrashConfig.RestartDelay):
 		}
+		logf(che.svcConfig.Logger, che.serviceName, "Restarting service (crash count: %d)", crashCount)
 	}
-	return exitCode, errors.New("Max crash count exceeded")
+	return exitCode, err
 }

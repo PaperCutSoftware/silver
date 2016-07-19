@@ -31,6 +31,7 @@ func (sm *serviceMonitor) start(terminate chan struct{}) chan struct{} {
 	go func() {
 		time.Sleep(sm.config.StartupDelay)
 		failureCount := 0
+		sm.logf("Starting monitor on '%s' (%s)", sm.serviceName, sm.config.URL)
 	isTerminate:
 		for {
 			select {
@@ -63,7 +64,7 @@ func (sm *serviceMonitor) start(terminate chan struct{}) chan struct{} {
 
 func (sm *serviceMonitor) logf(format string, v ...interface{}) {
 	if sm.logger != nil {
-		sm.logger.Printf(format, v...)
+		sm.logger.Printf("%s: %s", sm.serviceName, fmt.Sprintf(format, v...))
 	}
 }
 
