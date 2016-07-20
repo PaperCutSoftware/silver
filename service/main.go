@@ -62,18 +62,9 @@ func main() {
 		fmt.Fprintf(os.Stderr, "ERROR: Unable to set working directory - %v\n", err)
 		os.Exit(1)
 	}
-
 	switch action {
 	case "command":
-		var cmdName string
-		var cmdExtraArgs []string
-		if len(actionArgs) >= 3 {
-			cmdName = actionArgs[2]
-		}
-		if len(actionArgs) >= 4 {
-			cmdExtraArgs = actionArgs[3:]
-		}
-		execCommand(ctx, cmdName, cmdExtraArgs)
+		execCommand(ctx, actionArgs)
 	case "validate":
 		fmt.Println("Config is valid")
 		os.Exit(0)
@@ -164,20 +155,33 @@ func loadConf() (conf *config.Config, err error) {
 	return conf, err
 }
 
-func execCommand(ctx *context, cmdName string, cmdExtraArgs []string) {
+func execCommand(ctx *context, args []string) {
+	/*
+	*  IMPORTANT:
+	*  Don't write to any log files, etc.  Commands are not system service code.
+	*  Commands should be thought of as a "symlink" style, and run under a different
+	*  user context.
+	*
+	*  args format: 1st element is the command. Any extras are appended to the command.
+	 */
 	if len(ctx.conf.Commands) == 0 {
 		fmt.Fprintf(os.Stderr, "There are no commands configured!\n")
 		os.Exit(1)
 	}
+
 	var cmd *config.Command
-	for _, c := range ctx.conf.Commands {
-		if c.Name == cmdName {
-			cmd = &c
-			break
+	if len(args) > 0 {
+		cmdName := args[0]
+		for _, c := range ctx.conf.Commands {
+			if c.Name == cmdName {
+				cmd = &c
+				break
+			}
 		}
 	}
 
 	if cmd == nil {
+		// Print command usage
 		fmt.Fprintf(os.Stderr, "Valid commands are:\n")
 		for _, command := range ctx.conf.Commands {
 			fmt.Fprintf(os.Stderr, "    %s\n", command.Name)
@@ -187,7 +191,8 @@ func execCommand(ctx *context, cmdName string, cmdExtraArgs []string) {
 
 	cmdConf := cmdutil.CommandConfig{}
 	cmdConf.Path = pathutils.FindLastFile(cmd.Path)
-	cmdConf.Args = cmd.Args
+	// Append any extra commands
+	cmdConf.Args = append(cmd.Args, args[1:]...)
 	// FIXME: Maybe unit conversion should be in the config layer?
 	cmdConf.ExecTimeout = (time.Second * time.Duration(cmd.TimeoutSecs))
 
