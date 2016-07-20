@@ -82,7 +82,11 @@ func ExecuteTask(terminate chan struct{}, taskConf TaskConfig) (exitCode int, er
 	}()
 
 	executable := procmngt.NewExecutable(execConf)
-	logf(taskConf.Logger, taskName, "Starting task...")
+	if execConf.StartupDelay > 0 {
+		logf(taskConf.Logger, taskName, "Starting task (delayed %s)", execConf.StartupDelay.String())
+	} else {
+		logf(taskConf.Logger, taskName, "Starting task...")
+	}
 	return executable.Execute(terminate)
 }
 
@@ -171,7 +175,11 @@ restartLoop:
 			Stderr:           &logWriter{prefix: fmt.Sprintf("%s: STDERR|", che.serviceName), logger: che.svcConfig.Logger},
 		}
 		executable := procmngt.NewExecutable(execConf)
-		logf(che.svcConfig.Logger, che.serviceName, "Starting service...")
+		if execConf.StartupDelay > 0 {
+			logf(che.svcConfig.Logger, che.serviceName, "Starting service (delayed %s)", execConf.StartupDelay.String())
+		} else {
+			logf(che.svcConfig.Logger, che.serviceName, "Starting service...")
+		}
 		exitCode, err = executable.Execute(terminate)
 		if err != nil {
 			logf(che.svcConfig.Logger, che.serviceName, "Service returned error: %v", err)

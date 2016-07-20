@@ -268,6 +268,7 @@ func doStop(ctx *context) {
 	}
 	if ctx.cronManager != nil {
 		ctx.cronManager.Stop()
+		ctx.cronManager = nil
 	}
 	if ctx.terminate != nil {
 		close(ctx.terminate)
