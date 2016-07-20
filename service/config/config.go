@@ -4,7 +4,7 @@
 // Use of this source code is governed by an MIT or GPL Version 2 license.
 // See the project's LICENSE file for more information.
 //
-// FUTURE: Parsing structs should be seperated from returns structs.  The
+// FUTURE: Parsing structs should be separated from returns structs.  The
 //         return structs should have types like time.Duration, etc.
 //
 
@@ -133,11 +133,11 @@ func load(path string, vars ReplacementVars) (conf *Config, err error) {
 		return nil, err
 	}
 
-	replacments := map[string]string{
+	replacements := map[string]string{
 		"${ServiceName}": jsonEscapeString(vars.ServiceName),
 		"${ServiceRoot}": jsonEscapeString(vars.ServiceRoot),
 	}
-	s = []byte(replaceVars(string(s), replacments))
+	s = []byte(replaceVars(string(s), replacements))
 
 	err = json.Unmarshal(s, &conf)
 	if err != nil {
