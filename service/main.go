@@ -40,9 +40,7 @@ type context struct {
 
 func main() {
 
-	ctx := &context{
-		terminate: make(chan struct{}),
-	}
+	ctx := &context{}
 
 	// Parse config (we don't action any errors quite yet)
 	var err error
@@ -226,6 +224,7 @@ func doStart(ctx *context) {
 	if sf != "" {
 		os.Remove(sf)
 	}
+	ctx.terminate = make(chan struct{})
 	execStartupTasks(ctx)
 	setupScheduledTasks(ctx)
 	startServices(ctx)
@@ -283,9 +282,10 @@ func watchForReload(ctx *context) {
 		time.Sleep(defaultRefreshPoll)
 		if _, err := os.Stat(f); err == nil {
 			if err := os.Remove(f); err == nil {
-				ctx.logger.Printf("Reload requested")
+				ctx.logger.Printf("Reload requested. Services will now restart.")
 				doStop(ctx)
 				time.Sleep(time.Second)
+				// Reload config
 				ctx.conf, _ = loadConf()
 				doStart(ctx)
 			}
