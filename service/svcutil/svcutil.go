@@ -123,7 +123,7 @@ func ExecuteService(terminate chan struct{}, svcConfig ServiceConfig) error {
 		<-terminate
 		logf(svcConfig.Logger, serviceName, "Stopping service...")
 	}()
-	var t chan struct{}
+	t := terminate
 	if svcConfig.MonitorConfig.URL != "" && svcConfig.MonitorConfig.Interval > 0 {
 		t = make(chan struct{})
 		// Wrap our terminate channel in a monitor
@@ -140,8 +140,6 @@ func ExecuteService(terminate chan struct{}, svcConfig ServiceConfig) error {
 			}
 			close(t)
 		}()
-	} else {
-		t = terminate
 	}
 	_, err := crashHandlingExec.Executable(t)
 	return err
