@@ -227,7 +227,7 @@ func Test_ExecuteService_CrashConfig_MaxCount(t *testing.T) {
 	err := svcutil.ExecuteService(nil, serviceConf)
 
 	// Assert
-	if err != nil {
+	if err == nil {
 		t.Errorf("Expected error")
 	}
 

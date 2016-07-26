@@ -158,9 +158,6 @@ func (che *crashHandlingExecutable) Executable(terminate chan struct{}) (exitCod
 	crashCount := 0
 	max := che.svcConfig.CrashConfig.MaxCountPerHour
 	restartDelay := che.svcConfig.CrashConfig.RestartDelay
-	if restartDelay == 0 {
-		restartDelay = time.Millisecond
-	}
 	start := time.Now()
 restartLoop:
 	for {
@@ -178,8 +175,7 @@ restartLoop:
 		} else {
 			logf(che.svcConfig.Logger, che.serviceName, "Starting service...")
 		}
-		exitCode, err = executable.Execute(terminate)
-		if err != nil {
+		if exitCode, err = executable.Execute(terminate); err != nil {
 			logf(che.svcConfig.Logger, che.serviceName, "Service returned error: %v", err)
 		} else {
 			logf(che.svcConfig.Logger, che.serviceName, "Service stopped with exit code %d", exitCode)
@@ -195,10 +191,14 @@ restartLoop:
 			err = errors.New("Max crash count exceeded.")
 			break restartLoop
 		}
+		// Ensure we've got at least a small delay so we act on terminate first
+		if restartDelay == 0 {
+			restartDelay = time.Millisecond
+		}
 		select {
 		case <-terminate:
 			break restartLoop
-		case <-time.After(che.svcConfig.CrashConfig.RestartDelay):
+		case <-time.After(restartDelay):
 		}
 		logf(che.svcConfig.Logger, che.serviceName, "Restarting service (crash count: %d)", crashCount)
 	}

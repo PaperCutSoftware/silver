@@ -29,7 +29,7 @@ func Test_ExecuteService_MonitorConfig_EchoPing(t *testing.T) {
 		MonitorConfig: svcutil.MonitorConfig{
 			URL:          "echo://localhost:4300",
 			StartupDelay: 3 * time.Second,
-			Interval:     1 * time.Second,
+			Interval:     500 * time.Millisecond,
 			Timeout:      1 * time.Second,
 		},
 	}
@@ -40,8 +40,8 @@ func Test_ExecuteService_MonitorConfig_EchoPing(t *testing.T) {
 
 	// Assert
 	elapsed := time.Since(start)
-	expected := 7 * time.Second
-	threshold := 500 * time.Millisecond
+	expected := (5 + 1) * time.Second
+	threshold := 600 * time.Millisecond
 	if elapsed > expected+threshold {
 		t.Fatalf("Elapse time longer than expected.  Took: %v", elapsed)
 	}
