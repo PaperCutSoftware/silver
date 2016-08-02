@@ -12,6 +12,8 @@ import (
 	"log"
 	"os"
 	"path"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -20,6 +22,7 @@ import (
 	"github.com/robfig/cron"
 
 	"github.com/papercutsoftware/silver/lib/logging"
+	"github.com/papercutsoftware/silver/lib/osutils"
 	"github.com/papercutsoftware/silver/lib/pathutils"
 	"github.com/papercutsoftware/silver/service/cmdutil"
 	"github.com/papercutsoftware/silver/service/config"
@@ -57,7 +60,7 @@ func main() {
 	}
 
 	if err := os.Chdir(exeFolder()); err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: Unable to set working directory - %v\n", err)
+		fmt.Fprintf(os.Stderr, "ERROR: Unable to set working directory: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -69,6 +72,11 @@ func main() {
 	case "validate":
 		fmt.Println("Config is valid")
 		os.Exit(0)
+	case "install":
+		if err := writeProxyConf(); err != nil {
+			fmt.Fprintf(os.Stderr, "WARNING: Unable to store HTTP Proxy settings: %v\n", err)
+		}
+		fallthrough
 	default:
 		osServiceControl(ctx)
 	}
@@ -159,13 +167,32 @@ func loadConf() (conf *config.Config, err error) {
 func setupEnvironment(conf *config.Config) {
 	// Load Silver spacific
 	os.Setenv("SILVER_SERVICE_NAME", conf.ServiceDescription.Name)
-	os.Setenv("SILVER_SERVICE_ROOT", exeName())
+	os.Setenv("SILVER_SERVICE_ROOT", exeFolder())
 	os.Setenv("SILVER_SERVICE_PID", string(os.Getpid()))
+
+	// If we have HTTP proxy conf, load this
+	if b, err := ioutil.ReadFile(proxyConfFile()); err == nil {
+		proxy := strings.TrimSpace(string(b))
+		fmt.Printf("Setting silver proxy: %s\n", proxy)
+		os.Setenv("SILVER_HTTP_PROXY", proxy)
+	}
 
 	// Load any configured env
 	for k, v := range conf.EnvironmentVars {
 		os.Setenv(k, v)
 	}
+}
+
+func writeProxyConf() error {
+	proxy, err := osutils.GetHTTPProxy()
+	if err != nil || proxy == "" {
+		return nil
+	}
+	return ioutil.WriteFile(proxyConfFile(), []byte(proxy+"\n"), 0644)
+}
+
+func proxyConfFile() string {
+	return filepath.Join(exeFolder(), "http-proxy.conf")
 }
 
 func execCommand(ctx *context, args []string) {
