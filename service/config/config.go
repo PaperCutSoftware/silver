@@ -22,6 +22,7 @@ type Config struct {
 	ServiceDescription ServiceDescription
 	ServiceConfig      ServiceConfig
 	Include            []string
+	EnvironmentVars    map[string]string
 	Services           []Service
 	StartupTasks       []StartupTask
 	ScheduledTasks     []ScheduledTask
@@ -119,6 +120,9 @@ func MergeInclude(conf Config, path string, vars ReplacementVars) (*Config, erro
 	conf.StartupTasks = append(conf.StartupTasks, include.StartupTasks...)
 	conf.ScheduledTasks = append(conf.ScheduledTasks, include.ScheduledTasks...)
 	conf.Commands = append(conf.Commands, include.Commands...)
+	for k, v := range include.EnvironmentVars {
+		conf.EnvironmentVars[k] = v
+	}
 	return &conf, nil
 }
 
@@ -166,6 +170,10 @@ func applyDefaults(conf *Config) {
 
 	if conf.ServiceConfig.LogFileMaxSizeMb == 0 {
 		conf.ServiceConfig.LogFileMaxSizeMb = 50
+	}
+
+	if conf.EnvironmentVars == nil {
+		conf.EnvironmentVars = make(map[string]string)
 	}
 
 	// Default graceful is 5 seconds

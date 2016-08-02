@@ -69,6 +69,10 @@ func TestLocadConfig_ValidConfig(t *testing.T) {
                 "StartupRandomDelaySecs" : 0
             }
         ],
+		"EnvironmentVars" : {
+			"MY_VAR1" : "MyValue1", 
+			"MY_VAR2" : "MyValue2" 
+		},
         "ScheduledTasks" : [
             {
                 "Schedule" : "0 30 * * * *",
@@ -141,7 +145,15 @@ func TestLocadConfig_ValidConfig(t *testing.T) {
 	}
 
 	if c.ScheduledTasks[1].Path != "scheduled/task/2" {
-		t.Error("Problem extracting schedule task path")
+		t.Errorf("Problem extracting schedule task path")
+	}
+
+	if len(c.EnvironmentVars) != 2 {
+		t.Errorf("Expected 2 EnvironmentVars, got %d", len(c.EnvironmentVars))
+	}
+
+	if c.EnvironmentVars["MY_VAR1"] != "MyValue1" {
+		t.Errorf("Expected EnvironmentVars")
 	}
 
 	cmdArg := c.Commands[0].Args[0]
@@ -228,6 +240,10 @@ func TestLoadConfig_MinimalConfig(t *testing.T) {
 	if c.Services[0].Path != "test/path/1" {
 		t.Errorf("Problem extracting path")
 	}
+
+	if len(c.EnvironmentVars) != 0 {
+		t.Errorf("Expected no environment")
+	}
 }
 
 func TestLoadConfig_IncompleteConfig_ShouldError(t *testing.T) {
@@ -304,7 +320,10 @@ func TestMergeInclude_ValidInclude(t *testing.T) {
             {
                 "Path" : "test/path/from-include"
             }
-        ]
+        ],
+		"EnvironmentVars" : {
+			"MY_VAR1" : "MyValue1"
+		}
     }`
 	incFile := writeTestConfig(t, includeConfig)
 	defer os.Remove(incFile)
@@ -319,6 +338,10 @@ func TestMergeInclude_ValidInclude(t *testing.T) {
 
 	if baseConf.Services[0].Path != "test/path/from-include" {
 		t.Errorf("Problem extracting path")
+	}
+
+	if baseConf.EnvironmentVars["MY_VAR1"] != "MyValue1" {
+		t.Errorf("Expected environment var")
 	}
 }
 
