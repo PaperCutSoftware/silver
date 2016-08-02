@@ -60,6 +60,9 @@ func main() {
 		fmt.Fprintf(os.Stderr, "ERROR: Unable to set working directory - %v\n", err)
 		os.Exit(1)
 	}
+
+	setupEnvironment(ctx.conf)
+
 	switch action {
 	case "command":
 		execCommand(ctx, actionArgs)
@@ -151,6 +154,18 @@ func loadConf() (conf *config.Config, err error) {
 		}
 	}
 	return conf, err
+}
+
+func setupEnvironment(conf *config.Config) {
+	// Load Silver spacific
+	os.Setenv("SILVER_SERVICE_NAME", conf.ServiceDescription.Name)
+	os.Setenv("SILVER_SERVICE_ROOT", exeName())
+	os.Setenv("SILVER_SERVICE_PID", string(os.Getpid()))
+
+	// Load any configured env
+	for k, v := range conf.EnvironmentVars {
+		os.Setenv(k, v)
+	}
 }
 
 func execCommand(ctx *context, args []string) {
