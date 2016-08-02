@@ -15,7 +15,6 @@ package main
 
 import (
 	"archive/zip"
-	"crypto/md5"
 	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/json"
@@ -48,7 +47,6 @@ var (
 type UpgradeInfo struct {
 	URL        string
 	Version    string
-	Md5        string
 	Sha1       string
 	Sha256     string
 	Operations []Operation
@@ -283,8 +281,6 @@ func checksum(hashType string, file string) string {
 		hasher = sha256.New()
 	case hashType == "sha1":
 		hasher = sha1.New()
-	case hashType == "md5":
-		hasher = md5.New()
 	default:
 		hasher = sha1.New()
 	}
