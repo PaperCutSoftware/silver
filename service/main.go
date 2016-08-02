@@ -173,7 +173,6 @@ func setupEnvironment(conf *config.Config) {
 	// If we have HTTP proxy conf, load this
 	if b, err := ioutil.ReadFile(proxyConfFile()); err == nil {
 		proxy := strings.TrimSpace(string(b))
-		fmt.Printf("Setting silver proxy: %s\n", proxy)
 		os.Setenv("SILVER_HTTP_PROXY", proxy)
 	}
 
