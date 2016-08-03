@@ -132,6 +132,13 @@ func load(path string, vars ReplacementVars) (conf *Config, err error) {
 		return nil, err
 	}
 
+	// Special case for an empty file (empty file will raise error with JSON parser)
+	if string(s) == "" {
+		conf = &Config{}
+		applyDefaults(conf)
+		return conf, nil
+	}
+
 	err = json.Unmarshal(s, &conf)
 	if err != nil {
 		return nil, err

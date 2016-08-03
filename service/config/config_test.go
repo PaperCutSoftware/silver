@@ -19,7 +19,7 @@ import (
 func TestLoadConfig_MissingFileShouldRaiseError(t *testing.T) {
 	_, err := config.LoadConfig("invalid.conf", config.ReplacementVars{})
 	if err == nil {
-		t.Errorf("Expect error on missing file")
+		t.Error("Expect error on missing file")
 	}
 }
 
@@ -121,31 +121,31 @@ func TestLocadConfig_ValidConfig(t *testing.T) {
 	}
 
 	if !strings.Contains(c.ServiceConfig.LogFile, ".log") {
-		t.Errorf("Problem extracting LogFile with variable replaement")
+		t.Error("Problem extracting LogFile with variable replaement")
 	}
 
 	if strings.Contains(c.ServiceConfig.LogFile, "{ServiceName}") {
-		t.Errorf("Variable replaement did not happen")
+		t.Error("Variable replaement did not happen")
 	}
 
 	if !strings.Contains(c.Include[0], "include.conf") {
-		t.Errorf("Expected include")
+		t.Error("Expected include")
 	}
 
 	if c.Services[0].Path != "test/path/1" {
-		t.Errorf("Problem extracting path")
+		t.Error("Problem extracting path")
 	}
 
 	if c.Services[0].Args[0] != "arg1" {
-		t.Errorf("Problem extracting arg")
+		t.Error("Problem extracting arg")
 	}
 
 	if c.Services[0].Args[0] != "arg1" {
-		t.Errorf("Problem extracting arg")
+		t.Error("Problem extracting arg")
 	}
 
 	if c.ScheduledTasks[1].Path != "scheduled/task/2" {
-		t.Errorf("Problem extracting schedule task path")
+		t.Error("Problem extracting schedule task path")
 	}
 
 	if len(c.EnvironmentVars) != 2 {
@@ -153,7 +153,7 @@ func TestLocadConfig_ValidConfig(t *testing.T) {
 	}
 
 	if c.EnvironmentVars["MY_VAR1"] != "MyValue1" {
-		t.Errorf("Expected EnvironmentVars")
+		t.Error("Expected EnvironmentVars")
 	}
 
 	cmdArg := c.Commands[0].Args[0]
@@ -197,12 +197,12 @@ func TestLocalConfig_Defaults_OK(t *testing.T) {
 	}
 
 	if !strings.Contains(c.ServiceConfig.StopFile, ".stop") {
-		t.Errorf("Expected default StopFile=.stop")
+		t.Error("Expected default StopFile=.stop")
 	}
 
 	for _, service := range c.Services {
 		if service.GracefulShutdownTimeoutSecs != 5 {
-			t.Errorf("Expected default GracefulShutdownTimeoutSecs=5")
+			t.Error("Expected default GracefulShutdownTimeoutSecs=5")
 		}
 	}
 }
@@ -238,11 +238,11 @@ func TestLoadConfig_MinimalConfig(t *testing.T) {
 	}
 
 	if c.Services[0].Path != "test/path/1" {
-		t.Errorf("Problem extracting path")
+		t.Error("Problem extracting path")
 	}
 
 	if len(c.EnvironmentVars) != 0 {
-		t.Errorf("Expected no environment")
+		t.Error("Expected no environment")
 	}
 }
 
@@ -337,11 +337,43 @@ func TestMergeInclude_ValidInclude(t *testing.T) {
 	}
 
 	if baseConf.Services[0].Path != "test/path/from-include" {
-		t.Errorf("Problem extracting path")
+		t.Error("Problem extracting path")
 	}
 
 	if baseConf.EnvironmentVars["MY_VAR1"] != "MyValue1" {
-		t.Errorf("Expected environment var")
+		t.Error("Expected environment var")
+	}
+}
+
+func TestMergeInclude_EmptyInclude(t *testing.T) {
+	// Arrange
+	baseConfig := `
+    {
+        "ServiceDescription" : {
+            "DisplayName" : "My Service",
+            "Description" : "My Service Desc"
+        },
+		"Include" : ["${ServiceRoot}/v*/service.conf"]
+    }`
+	baseFile := writeTestConfig(t, baseConfig)
+	defer os.Remove(baseFile)
+
+	vars := config.ReplacementVars{
+		ServiceName: "MyServiceName",
+		ServiceRoot: `C:\ProgramFiles\MyService`,
+	}
+	baseConf, err := config.LoadConfig(baseFile, vars)
+
+	emptyIncludeConfig := ""
+	incFile := writeTestConfig(t, emptyIncludeConfig)
+	defer os.Remove(incFile)
+
+	// Act
+	baseConf, err = config.MergeInclude(*baseConf, incFile, vars)
+
+	// Assert no error
+	if err != nil {
+		t.Errorf("Error loading config: %v", err)
 	}
 }
 

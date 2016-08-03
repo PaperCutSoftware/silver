@@ -464,7 +464,7 @@ func removeOp(args []string) error {
 		fmt.Printf("Removing '%s' ...\n", match)
 		if err := os.RemoveAll(match); err != nil {
 			// Don't exit... best effort
-			fmt.Printf("Error removing %s: %v\n", match, err)
+			fmt.Printf("Problem removing %s: %v\n", match, err)
 		}
 		removeCnt++
 	}
