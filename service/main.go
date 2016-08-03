@@ -43,6 +43,11 @@ type context struct {
 
 func main() {
 
+	if err := os.Chdir(exeFolder()); err != nil {
+		fmt.Fprintf(os.Stderr, "ERROR: Unable to set working directory: %v\n", err)
+		os.Exit(1)
+	}
+
 	ctx := &context{}
 
 	// Parse config (we don't action any errors quite yet)
@@ -56,11 +61,6 @@ func main() {
 	action, actionArgs, err := parse(os.Args)
 	if err != nil {
 		printUsage(ctx.conf.ServiceDescription.DisplayName, ctx.conf.ServiceDescription.Description)
-		os.Exit(1)
-	}
-
-	if err := os.Chdir(exeFolder()); err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: Unable to set working directory: %v\n", err)
 		os.Exit(1)
 	}
 
@@ -156,6 +156,7 @@ func loadConf() (conf *config.Config, err error) {
 
 	// Merge in any include files
 	for _, include := range conf.Include {
+		include = pathutils.FindLastFile(include)
 		conf, err = config.MergeInclude(*conf, include, vars)
 		if err != nil {
 			return nil, err
