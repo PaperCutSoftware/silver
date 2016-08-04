@@ -8,7 +8,6 @@
 package procmngt
 
 import (
-	"errors"
 	"io"
 	"os/exec"
 	"sync"
@@ -20,10 +19,6 @@ import (
 
 const (
 	errorExitCode = 255
-)
-
-var (
-	errManualTerminate = errors.New("Manually terminated")
 )
 
 type Executable interface {
@@ -87,7 +82,7 @@ type startupDelayedExecutable struct {
 func (sdc startupDelayedExecutable) Execute(terminate <-chan struct{}) (exitCode int, err error) {
 	select {
 	case <-terminate:
-		return errorExitCode, errManualTerminate
+		return errorExitCode, nil
 	case <-time.After(sdc.startupDelay):
 	}
 	return sdc.wrappedExecutable.Execute(terminate)
