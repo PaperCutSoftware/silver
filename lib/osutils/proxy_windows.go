@@ -15,6 +15,7 @@ var (
 	winHttpGetProxyForUrl                 = winhttp.NewProc("WinHttpGetProxyForUrl")
 	winHttpOpen                           = winhttp.NewProc("WinHttpOpen")
 	winHttpSetTimeouts                    = winhttp.NewProc("WinHttpSetTimeouts")
+	winHttpCloseHandle                    = winhttp.NewProc("WinHttpCloseHandle")
 )
 
 type winHttpCurrentUserIEProxyConfig struct {
@@ -24,12 +25,6 @@ type winHttpCurrentUserIEProxyConfig struct {
 	lpszProxyBypass   *uint16
 }
 
-/* assumptions:
-DWORD = unint32
-LPVOID= *uint32
-LPCWSTR = *uint32
-
-*/
 type winHttpProxyInfo struct {
 	dwAccessType    uint32
 	lpszProxy       *uint16
@@ -45,36 +40,92 @@ type winHttpAutoProxyOptions struct {
 	fAutoLogonIfChallenged uint32
 }
 
+const defaultCheckURL = "https://example.com"
+
 func getHTTPProxy() (string, error) {
-	fmt.Printf("TEMP: testing\n")
-	// TODO: config file proxyurl overrides this default url
-	url, err := url.Parse("https://example.com")
+	proxyCfg, err := getProxyConfigForCurrentUser()
 	if err != nil {
 		return "", err
+	} else if proxyCfg.proxy != "" {
+		return proxyCfg.proxy, nil
 	}
 
-	proxy, err := getProxyConfigFromURL(url)
-	if err != nil {
-		return "", err
-	} else if proxy != "" {
-		fmt.Printf("proxy config from url %v\n", proxy)
-		return proxy, nil
+	// Have we got auto detect url?  Of not, return
+	if proxyCfg.autoConfigUrl == "" {
+		return "", nil
 	}
 
-	// TODO we should test the connection here.
-	proxy, err = getProxyConfigForCurrentUser()
+	// FUTURE: Make this configurable if we have a need
+	checkURL := defaultCheckURL
+	if _, err := url.Parse(checkURL); err != nil {
+		return "", fmt.Errorf("The supplied check URL is invalid: %v", err)
+	}
+
+	proxy, err := getProxyConfigFromURL(proxyCfg.autoConfigUrl, checkURL)
 	if err != nil {
 		return "", err
-	} else if proxy != "" {
-		fmt.Printf("proxy config from url %v\n", proxy)
-		return proxy, nil
 	}
+	fmt.Printf("proxy config from url %v\n", proxy)
 	return proxy, nil
 }
 
-func getProxyConfigForCurrentUser() (string, error) {
-	proxyConfig := winHttpCurrentUserIEProxyConfig{}
-	if r, _, e1 := winHttpGetIEProxyConfigForCurrentUser.Call(uintptr(unsafe.Pointer(&proxyConfig))); r == 0 {
+type proxyConfig struct {
+	autoConfigUrl string
+	proxy         string
+	proxyBypass   string
+}
+
+func getProxyConfigForCurrentUser() (*proxyConfig, error) {
+	pConfig := winHttpCurrentUserIEProxyConfig{}
+	if r, _, e1 := winHttpGetIEProxyConfigForCurrentUser.Call(uintptr(unsafe.Pointer(&pConfig))); r == 0 {
+		var err error
+		if e1 != nil {
+			err = e1
+		} else {
+			err = syscall.GetLastError()
+		}
+		return nil, err
+	}
+	c := &proxyConfig{
+		proxy:         ptrToString(pConfig.lpszProxy, 1024),
+		proxyBypass:   ptrToString(pConfig.lpszProxyBypass, 1024),
+		autoConfigUrl: ptrToString(pConfig.lpszAutoConfigUrl, 1024),
+	}
+	return c, nil
+}
+
+func getProxyConfigFromURL(autoConfigURL string, checkURL string) (string, error) {
+	const WINHTTP_AUTOPROXY_CONFIG_URL = 2
+
+	hSession, err := openWinHttpSession()
+	if err != nil {
+		return "", err
+	}
+	// Best effort cleanup
+	defer winHttpCloseHandle.Call(uintptr(hSession))
+
+	lpcwszUrl, err := syscall.UTF16PtrFromString(checkURL)
+	if err != nil {
+		return "", err
+	}
+
+	lpszAutoConfigUrl, err := syscall.UTF16PtrFromString(autoConfigURL)
+	if err != nil {
+		return "", err
+	}
+
+	autoProxyOptions := winHttpAutoProxyOptions{
+		dwFlags:                WINHTTP_AUTOPROXY_CONFIG_URL,
+		lpszAutoConfigUrl:      lpszAutoConfigUrl,
+		dwAutoDetectFlags:      0,
+		fAutoLogonIfChallenged: 0,
+	}
+
+	proxyInfo := winHttpProxyInfo{}
+	if r, _, e1 := winHttpGetProxyForUrl.Call(uintptr(hSession),
+		uintptr(unsafe.Pointer(lpcwszUrl)),
+		uintptr(unsafe.Pointer(&autoProxyOptions)),
+		uintptr(unsafe.Pointer(&proxyInfo))); r == 0 {
 		var err error
 		if e1 != nil {
 			err = e1
@@ -83,8 +134,7 @@ func getProxyConfigForCurrentUser() (string, error) {
 		}
 		return "", err
 	}
-
-	return ptrToString(proxyConfig.lpszProxy, 1024), nil
+	return ptrToString(proxyInfo.lpszProxy, 1024), nil
 }
 
 func openWinHttpSession() (syscall.Handle, error) {
@@ -102,9 +152,8 @@ func openWinHttpSession() (syscall.Handle, error) {
 		return syscall.InvalidHandle, err
 	}
 
-	//should we continue on error? only setting the defaults a bit lower from 1 min each stage
-	if r, _, e1 := winHttpSetTimeouts.Call(uintptr(hInternet), 10000, 10000, 10000, 10000); r == 0 {
-
+	const tenSecs = 10000
+	if r, _, e1 := winHttpSetTimeouts.Call(uintptr(hInternet), tenSecs, tenSecs, tenSecs, tenSecs); r == 0 {
 		var err error
 		if e1 != nil {
 			err = e1
@@ -114,44 +163,6 @@ func openWinHttpSession() (syscall.Handle, error) {
 		return syscall.InvalidHandle, err
 	}
 	return hInternet, nil
-}
-
-// TODO add more logging?
-
-func getProxyConfigFromURL(url *url.URL) (string, error) {
-	const WINHTTP_AUTOPROXY_AUTO_DETECT = 1
-	const WINHTTP_AUTO_DETECT_TYPE_DHCP = 1
-	const WINHTTP_AUTO_DETECT_TYPE_DNS_A = 2
-
-	hSession, err := openWinHttpSession()
-	if err != nil {
-		return "", err
-	}
-	fmt.Println("querieng api")
-	// FIXME need 32 bit but not there?
-	//
-	lpcwszUrl, err := syscall.UTF16PtrFromString(url.String())
-	if err != nil {
-		return "", err
-	}
-
-	autoProxyOptions := winHttpAutoProxyOptions{
-		dwFlags:                WINHTTP_AUTOPROXY_AUTO_DETECT,
-		dwAutoDetectFlags:      WINHTTP_AUTO_DETECT_TYPE_DHCP | WINHTTP_AUTO_DETECT_TYPE_DNS_A,
-		fAutoLogonIfChallenged: 0,
-	}
-
-	proxyInfo := winHttpProxyInfo{}
-	if r, _, e1 := winHttpGetProxyForUrl.Call(uintptr(hSession), uintptr(unsafe.Pointer(lpcwszUrl)), uintptr(unsafe.Pointer(&autoProxyOptions)), uintptr(unsafe.Pointer(&proxyInfo))); r == 0 {
-		var err error
-		if e1 != nil {
-			err = e1
-		} else {
-			err = syscall.GetLastError()
-		}
-		return "", err
-	}
-	return ptrToString(proxyInfo.lpszProxy, 1024), nil
 }
 
 func ptrToString(p *uint16, maxLength int) string {
