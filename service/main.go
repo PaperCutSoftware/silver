@@ -174,7 +174,9 @@ func setupEnvironment(conf *config.Config) {
 	// If we have HTTP proxy conf, load this
 	if b, err := ioutil.ReadFile(proxyConfFile()); err == nil {
 		proxy := strings.TrimSpace(string(b))
-		os.Setenv("SILVER_HTTP_PROXY", proxy)
+		if proxy != "" {
+			os.Setenv("SILVER_HTTP_PROXY", proxy)
+		}
 	}
 
 	// Load any configured env
@@ -185,8 +187,8 @@ func setupEnvironment(conf *config.Config) {
 
 func writeProxyConf() error {
 	proxy, err := osutils.GetHTTPProxy()
-	if err != nil || proxy == "" {
-		return nil
+	if err != nil {
+		proxy = ""
 	}
 	return ioutil.WriteFile(proxyConfFile(), []byte(proxy+"\n"), 0644)
 }
