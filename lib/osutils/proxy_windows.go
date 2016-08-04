@@ -3,7 +3,6 @@
 package osutils
 
 import (
-	"fmt"
 	"syscall"
 	"unsafe"
 )
@@ -23,7 +22,6 @@ type winHttpCurrentUserIEProxyConfig struct {
 func getHTTPProxy() (string, error) {
 	proxyConfig := winHttpCurrentUserIEProxyConfig{}
 	if r, _, e1 := winHttpGetIEProxyConfigForCurrentUser.Call(uintptr(unsafe.Pointer(&proxyConfig))); r == 0 {
-		fmt.Printf("r %v, e1 %v\n", r, e1)
 		var err error
 		if e1 != nil {
 			err = e1
