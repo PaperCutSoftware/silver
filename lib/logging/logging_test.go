@@ -14,12 +14,12 @@ func TestStandardLogging(t *testing.T) {
 
 	logger := NewFileLogger(lname)
 	defer func() {
-		CloseAllOpenFileLoggers()
 		os.Remove(lname)
 	}()
 
 	msg := "TestStandardLogging"
 	logger.Printf(msg)
+	CloseAllOpenFileLoggers()
 
 	output, err := ioutil.ReadFile(lname)
 	if err != nil {
@@ -37,7 +37,6 @@ func TestRollingLog(t *testing.T) {
 
 	logger := NewFileLoggerWithMaxSize(lname, 1024)
 	defer func() {
-		CloseAllOpenFileLoggers()
 		os.Remove(lname)
 		os.Remove(rname)
 	}()
@@ -46,6 +45,7 @@ func TestRollingLog(t *testing.T) {
 	for i := 0; i < 100; i++ {
 		logger.Printf("%s-%d", msg, i)
 	}
+	CloseAllOpenFileLoggers()
 
 	// Test main log file
 	output, err := ioutil.ReadFile(lname)
@@ -82,7 +82,8 @@ func TestRollingLogFlush_IsFlushed(t *testing.T) {
 		logger.Printf("%s-%d", msg, i)
 	}
 	logger.Printf("x")
-	//time.Sleep(6 * time.Second)
+	// Log should flush after 5 seconds!
+	time.Sleep(5*time.Second + 500*time.Millisecond)
 
 	// Assert
 	output, err := ioutil.ReadFile(lname)
