@@ -5,6 +5,7 @@ package osutils
 import (
 	"fmt"
 	"net/url"
+	"strings"
 	"syscall"
 	"unsafe"
 )
@@ -42,31 +43,45 @@ type winHttpAutoProxyOptions struct {
 
 const defaultCheckURL = "https://example.com"
 
-func getHTTPProxy() (string, error) {
+func getHTTPProxies() ([]string, error) {
+	none := []string{}
 	proxyCfg, err := getProxyConfigForCurrentUser()
 	if err != nil {
-		return "", err
-	} else if proxyCfg.proxy != "" {
-		return proxyCfg.proxy, nil
+		return none, err
+	}
+
+	if proxyCfg.proxy != "" {
+		return splitProxyList(proxyCfg.proxy), nil
 	}
 
 	// Have we got auto detect url?  Of not, return
 	if proxyCfg.autoConfigUrl == "" {
-		return "", nil
+		return none, nil
 	}
 
 	// FUTURE: Make this configurable if we have a need
 	checkURL := defaultCheckURL
 	if _, err := url.Parse(checkURL); err != nil {
-		return "", fmt.Errorf("The supplied check URL is invalid: %v", err)
+		return none, fmt.Errorf("The supplied check URL is invalid: %v", err)
 	}
 
 	proxy, err := getProxyConfigFromURL(proxyCfg.autoConfigUrl, checkURL)
 	if err != nil {
-		return "", err
+		return none, err
 	}
-	fmt.Printf("proxy config from url %v\n", proxy)
-	return proxy, nil
+	return splitProxyList(proxy), nil
+}
+
+func splitProxyList(list string) []string {
+	if list == "" {
+		return []string{""}
+	}
+	all := strings.Split(list, ";")
+	allClean := make([]string, 0, len(all))
+	for _, p := range all {
+		allClean = append(allClean, strings.TrimSpace(p))
+	}
+	return allClean
 }
 
 type proxyConfig struct {

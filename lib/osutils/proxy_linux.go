@@ -4,11 +4,11 @@ package osutils
 
 import "os"
 
-func getHTTPProxy() (string, error) {
+func getHTTPProxies() ([]string, error) {
 	// FUTURE: Also use gconftool -R /system/http_proxy  ?
 	proxy := os.Getenv("HTTP_PROXY")
 	if proxy == "" {
 		proxy = os.Getenv("http_proxy")
 	}
-	return proxy, nil
+	return []string{proxy}, nil
 }

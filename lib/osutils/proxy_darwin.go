@@ -9,10 +9,11 @@ import (
 	"strings"
 )
 
-func getHTTPProxy() (string, error) {
+func getHTTPProxies() ([]string, error) {
+	none := []string{}
 	out, err := exec.Command("system_profiler", "SPNetworkDataType").Output()
 	if err != nil {
-		return "", fmt.Errorf("Unable to run system_profiler: %v", err)
+		return none, fmt.Errorf("Unable to run system_profiler: %v", err)
 	}
 	sysData := string(out)
 	/*
@@ -29,5 +30,5 @@ func getHTTPProxy() (string, error) {
 			return fmt.Sprintf("%s:%s", server[1], port[1]), nil
 		}
 	}
-	return "", nil
+	return none, nil
 }
