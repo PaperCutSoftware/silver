@@ -27,7 +27,7 @@ func getHTTPProxies() ([]string, error) {
 		server := regexp.MustCompile(`HTTP Proxy Server:\s+(\w+)`).FindStringSubmatch(sysData)
 		port := regexp.MustCompile(`HTTP Proxy Port:\s+(\d+)`).FindStringSubmatch(sysData)
 		if len(server) > 1 && len(port) > 1 {
-			return fmt.Sprintf("%s:%s", server[1], port[1]), nil
+			return []string{fmt.Sprintf("%s:%s", server[1], port[1])}, nil
 		}
 	}
 	return none, nil
