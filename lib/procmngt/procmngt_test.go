@@ -123,8 +123,8 @@ func Test_FixedDelayedStoppedByTerminateBeforeStart(t *testing.T) {
 	if actualExitCode != expectExitCode {
 		t.Fatalf("Expected exitCode: %v but got :%v", expectExitCode, actualExitCode)
 	}
-	if err == nil {
-		t.Fatalf("Expected error but got nothing")
+	if err != nil {
+		t.Fatalf("Expected no error but got: %v", err)
 	}
 
 	// Assert
