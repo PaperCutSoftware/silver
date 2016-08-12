@@ -73,27 +73,27 @@ func getHTTPProxies() ([]string, error) {
 }
 
 func parseProxyList(list string) []string {
-
 	if list == "" {
 		return []string{""}
 	}
 	all := strings.Split(list, ";")
 	allClean := make([]string, 0, len(all))
 	for _, p := range all {
-		allClean = append(allClean, validateProxy(p))
+		allClean = append(allClean, cleanProxy(p))
 	}
 	return allClean
-
 }
 
+// Clean will remove any white space and any protocol prefix (seen when we've configured an "Advanced" list
+// in the Windows control panel).
 // FUTURE: Inspect proxies and return a struct that differentiates between proxies intended for specific protocols
 // We currently don't differentiate between proxies set for specific protocols.
-func validateProxy (proxy string) string {
-	advancedPrefixes := []string{"http=", "https=", "ftp=", "socks="}
+func cleanProxy(proxy string) string {
 	proxy = strings.TrimSpace(proxy)
+	advancedPrefixes := []string{"http=", "https=", "ftp=", "socks="}
 	for _, prefix := range advancedPrefixes {
-		if strings.HasPrefix(proxy,prefix) {
-			return strings.TrimPrefix(proxy,prefix)
+		if strings.HasPrefix(proxy, prefix) {
+			return strings.TrimPrefix(proxy, prefix)
 		}
 	}
 	return proxy
