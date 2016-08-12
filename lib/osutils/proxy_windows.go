@@ -51,7 +51,7 @@ func getHTTPProxies() ([]string, error) {
 	}
 
 	if proxyCfg.proxy != "" {
-		return splitProxyList(proxyCfg.proxy), nil
+		return parseProxyList(proxyCfg.proxy), nil
 	}
 
 	// Have we got auto detect url?  Of not, return
@@ -69,19 +69,34 @@ func getHTTPProxies() ([]string, error) {
 	if err != nil {
 		return none, err
 	}
-	return splitProxyList(proxy), nil
+	return parseProxyList(proxy), nil
 }
 
-func splitProxyList(list string) []string {
+func parseProxyList(list string) []string {
+
 	if list == "" {
 		return []string{""}
 	}
 	all := strings.Split(list, ";")
 	allClean := make([]string, 0, len(all))
 	for _, p := range all {
-		allClean = append(allClean, strings.TrimSpace(p))
+		allClean = append(allClean, validateProxy(p))
 	}
 	return allClean
+
+}
+
+// FUTURE: Inspect proxies and return a struct that differentiates between proxies intended for specific protocols
+// We currently don't differentiate between proxies set for specific protocols.
+func validateProxy (proxy string) string {
+	advancedPrefixes := []string{"http=", "https=", "ftp=", "socks="}
+	proxy = strings.TrimSpace(proxy)
+	for _, prefix := range advancedPrefixes {
+		if strings.HasPrefix(proxy,prefix) {
+			return strings.TrimPrefix(proxy,prefix)
+		}
+	}
+	return proxy
 }
 
 type proxyConfig struct {
