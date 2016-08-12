@@ -257,6 +257,11 @@ func (o *osService) Start(s service.Service) error {
 		sysLogger.Info(msg)
 	}
 
+	proxy := os.Getenv("SILVER_HTTP_PROXY")
+	if proxy != "" {
+		o.ctx.logger.Printf("Proxy set to: '%s'", proxy)
+	}
+
 	doStart(o.ctx)
 	go watchForReload(o.ctx)
 
