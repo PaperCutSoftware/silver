@@ -33,7 +33,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/PaperCutSoftware/silver/lib/pathutils"
+	"github.com/papercutsoftware/silver/lib/pathutils"
 )
 
 var (
@@ -212,13 +212,22 @@ func fileSize(file string) (size int64, err error) {
 	return fi.Size(), nil
 }
 
-func checkUpdate(url string, currentVer string) (*UpgradeInfo, error) {
+func checkUpdate(checkURL string, currentVer string) (*UpgradeInfo, error) {
 	client := &http.Client{}
-	req, err := http.NewRequest("GET", url+"?version="+currentVer, nil)
+
+	u, err := url.Parse(checkURL)
+	values := u.Query()
+	values.Set("version", currentVer)
+	u.RawQuery = values.Encode()
+
+	req, err := http.NewRequest("GET", u.String(), nil)
 	if err != nil {
 		return nil, err
 	}
 	req.Header.Set("User-Agent", "Update Check")
+	req.Header.Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	req.Header.Set("Pragma", "no-cache")
+	req.Header.Set("Expires", "0")
 
 	res, err := client.Do(req)
 	if err != nil {
@@ -238,7 +247,7 @@ func checkUpdate(url string, currentVer string) (*UpgradeInfo, error) {
 	var info UpgradeInfo
 	err = dec.Decode(&info)
 	if err != nil {
-		return nil, errors.New(fmt.Sprintf("Unable to parse JSON at %s : %v", url, err))
+		return nil, errors.New(fmt.Sprintf("Unable to parse JSON at %s : %v", u.String(), err))
 	}
 
 	if info.Version != "" && info.Version == currentVer {
