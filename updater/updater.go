@@ -216,6 +216,10 @@ func checkUpdate(checkURL string, currentVer string) (*UpgradeInfo, error) {
 	client := &http.Client{}
 
 	u, err := url.Parse(checkURL)
+	if err != nil {
+		return nil, err
+	}
+
 	values := u.Query()
 	values.Set("version", currentVer)
 	u.RawQuery = values.Encode()
