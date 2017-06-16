@@ -1,6 +1,6 @@
 // SILVER - Service Wrapper
 //
-// Copyright (c) 2016 PaperCut Software http://www.papercut.com/
+// Copyright (c) 2016, 2017 PaperCut Software http://www.papercut.com/
 // Use of this source code is governed by an MIT or GPL Version 2 license.
 // See the project's LICENSE file for more information.
 //
@@ -22,22 +22,25 @@ import (
 func Test_ProcessKillGracefully_ConsoleProgram(t *testing.T) {
 	tmpDir, testExe := makeTestCommand(t)
 	defer cleanupTestCommand(t, tmpDir)
-	testProcessKillGracefully(testExe, t)
+	testProcessKillGracefully(testExe, nil, t)
 }
 
 func Test_ProcessKillGracefully_GUIProgram(t *testing.T) {
 	var testCmd string
+	var args []string
+
 	if runtime.GOOS == "windows" {
 		testCmd = `c:\Windows\notepad.exe`
 	} else {
-		testCmd = "/sbin/ping"
+		testCmd = "ping"
+		args = []string{"localhost"}
 	}
-	testProcessKillGracefully(testCmd, t)
+	testProcessKillGracefully(testCmd, args, t)
 }
 
-func testProcessKillGracefully(command string, t *testing.T) {
+func testProcessKillGracefully(command string, args []string, t *testing.T) {
 	t.Logf("Starting %v", command)
-	cmd := exec.Command(command)
+	cmd := exec.Command(command, args...)
 	cmd.SysProcAttr = osutils.ProcessSysProcAttrForQuit()
 	err := cmd.Start()
 	// Give time to open
