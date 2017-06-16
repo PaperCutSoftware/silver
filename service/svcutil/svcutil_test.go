@@ -1,6 +1,6 @@
 // SILVER - Service Wrapper
 //
-// Copyright (c) 2016 PaperCut Software http://www.papercut.com/
+// Copyright (c) 2016, 2017 PaperCut Software http://www.papercut.com/
 // Use of this source code is governed by an MIT or GPL Version 2 license.
 // See the project's LICENSE file for more information.
 //
@@ -43,7 +43,7 @@ func Test_ExecuteRandomStartupDelayTask(t *testing.T) {
 	// Assert
 	elapsed := time.Since(start)
 	threshold := time.Duration(300 * time.Millisecond) // the command should take less than threshold to run
-	if elapsed <= delay+threshold {
+	if elapsed <= delay {
 		t.Fatalf("The task start up delay is not enforced")
 	}
 
@@ -100,8 +100,7 @@ func Test_ExecuteTask_GracefulShutDown_OK(t *testing.T) {
 
 	// Assert
 	elapsed := time.Since(start)
-	threshold := time.Duration(700 * time.Millisecond)
-	if elapsed > shutdownIn+threshold {
+	if elapsed > shutdownIn+taskConf.GracefulShutDown {
 		t.Fatalf("Elapse time longer than expected.  Took: %v", elapsed)
 	}
 
