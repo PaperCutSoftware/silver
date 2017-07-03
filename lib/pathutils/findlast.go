@@ -12,18 +12,11 @@ import (
 	"sort"
 )
 
-func FindLastFile(pattern string) (match string) {
-
-	var matches []string
-	var err error
-	matches, err = filepath.Glob(pattern)
-	if err != nil {
-		return pattern
-	}
-	if len(matches) < 1 {
+func FindLastFile(pattern string) string {
+	matches, err := filepath.Glob(pattern)
+	if err != nil || len(matches) < 1 {
 		return pattern
 	}
 	sort.Sort(sort.Reverse(sort.StringSlice(matches)))
-	match = matches[0]
-	return
+	return matches[0]
 }

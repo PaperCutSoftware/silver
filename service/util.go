@@ -13,6 +13,15 @@ import (
 	"bitbucket.org/kardianos/osext"
 )
 
+func getConfigFilePath() string {
+	exePath := exePath()
+	extension := filepath.Ext(exePath)
+	if strings.ToLower(extension) == ".exe" {
+		return exePath[0:len(exePath)-4] + ".conf"
+	}
+	return exePath + ".conf"
+}
+
 func exePath() string {
 	exePath, err := osext.Executable()
 	if err != nil {

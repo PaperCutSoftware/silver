@@ -15,7 +15,6 @@ package main
 
 import (
 	"archive/zip"
-	"crypto/md5"
 	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/json"
@@ -26,6 +25,7 @@ import (
 	"io"
 	"io/ioutil"
 	"net/http"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -47,7 +47,6 @@ var (
 type UpgradeInfo struct {
 	URL        string
 	Version    string
-	Md5        string
 	Sha1       string
 	Sha256     string
 	Operations []Operation
@@ -104,8 +103,16 @@ func upgradeIfRequired(checkURL string) (upgraded bool, err error) {
 		currentVer = *overrideVersion
 	}
 
-	// Ping update URL
+	// Check update URL
 	upgradeInfo, err := checkUpdate(checkURL, currentVer)
+	if err != nil {
+		// If we've got a proxy, have one more go with it off.
+		if proxy := os.Getenv("HTTP_PROXY"); proxy != "" {
+			fmt.Printf("Update check using proxy '%s' failed. Trying again without ...\n", proxy)
+			turnOffHTTPProxy()
+		}
+		upgradeInfo, err = checkUpdate(checkURL, currentVer)
+	}
 	if err != nil {
 		return false, err
 	}
@@ -274,8 +281,6 @@ func checksum(hashType string, file string) string {
 		hasher = sha256.New()
 	case hashType == "sha1":
 		hasher = sha1.New()
-	case hashType == "md5":
-		hasher = md5.New()
 	default:
 		hasher = sha1.New()
 	}
@@ -336,11 +341,18 @@ func readCurrentVersion() string {
 }
 
 func setupHTTPProxy() {
+	// Force if set via flag
 	if len(*httpProxy) > 0 {
 		os.Setenv("HTTP_PROXY", *httpProxy)
 		return
 	}
-	var proxy = ""
+	// Check Silver Environment
+	proxy := os.Getenv("SILVER_HTTP_PROXY")
+	if proxy != "" {
+		os.Setenv("HTTP_PROXY", proxy)
+		return
+	}
+	// Proxy conf file
 	if dat, err := ioutil.ReadFile("http-proxy.conf"); err == nil {
 		proxy = strings.TrimSpace(string(dat))
 	}
@@ -348,6 +360,15 @@ func setupHTTPProxy() {
 		os.Setenv("HTTP_PROXY", proxy)
 		return
 	}
+}
+
+func turnOffHTTPProxy() {
+	if t, ok := http.DefaultTransport.(*http.Transport); ok {
+		t.Proxy = func(req *http.Request) (*url.URL, error) {
+			return nil, nil
+		}
+	}
+
 }
 
 func execOp(args []string) (err error) {
@@ -441,8 +462,9 @@ func removeOp(args []string) error {
 	removeCnt := 0
 	for _, match := range matches {
 		fmt.Printf("Removing '%s' ...\n", match)
-		if os.RemoveAll(match) != nil {
-			return err
+		if err := os.RemoveAll(match); err != nil {
+			// Don't exit... best effort
+			fmt.Printf("Problem removing %s: %v\n", match, err)
 		}
 		removeCnt++
 	}

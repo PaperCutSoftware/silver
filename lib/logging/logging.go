@@ -6,98 +6,158 @@
 //
 // Contributors:  chris.dance@papercut.com
 
+// Package logging implements a Go-compatible loggers such as console and
+// basic file rotation.
 //
 // Silver's logging requirements are very basic.  We'll roll our own rather than
 // bring in a fatter dependency like Seelog. All we require on top of Go's basic
 // logging is some very basic file rotation (at the moment only one level).
-//
 package logging
 
 import (
+	"bufio"
 	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
+	"runtime"
 	"sync"
+	"time"
 )
 
 const (
-	defaultMaxSize = 10 * 1024 * 1024 // 10 MB
+	defaultMaxSize       = 10 * 1024 * 1024 // 10 MB
+	defaultFlushInterval = 5 * time.Second
 )
 
 var (
-	openLogFiles = make(map[string]*os.File)
+	openRollingFiles = []*rollingFile{}
 )
 
+// Why a wrapper - see finalizer comment below.
+type rollingFileWrapper struct {
+	*rollingFile
+}
+
 type rollingFile struct {
-	name        string
-	maxSize     int64
-	mu          sync.Mutex
-	currentFile *os.File
-	currentSize int64
+	sync.Mutex
+	name                string
+	file                *os.File
+	maxSize             int64
+	bufWriter           *bufio.Writer
+	bytesSinceLastFlush int64
+	currentSize         int64
+	flusher             *flusher
+}
+
+type flusher struct {
+	interval time.Duration
+	stop     chan struct{}
+}
+
+func (f *flusher) run(rf *rollingFile) {
+	tick := time.Tick(f.interval)
+	for {
+		select {
+		case <-tick:
+			rf.flush()
+		case <-f.stop:
+			return
+		}
+	}
+}
+
+func stopFlusher(rfw *rollingFileWrapper) {
+	close(rfw.flusher.stop)
 }
 
 func newRollingFile(name string, maxSize int64) (rf *rollingFile, err error) {
 	if maxSize <= 0 {
 		maxSize = defaultMaxSize
 	}
-	rf = &rollingFile{name: name, maxSize: maxSize}
+	rf = &rollingFile{
+		name:    name,
+		maxSize: maxSize,
+		flusher: &flusher{
+			interval: defaultFlushInterval,
+			stop:     make(chan struct{}),
+		},
+	}
 	err = rf.open()
+	go rf.flusher.run(rf)
 	return
 }
 
 func (rf *rollingFile) Write(p []byte) (n int, err error) {
-	rf.mu.Lock()
-	defer rf.mu.Unlock()
+	rf.Lock()
+	defer rf.Unlock()
 
 	if rf.currentSize+int64(len(p)) >= rf.maxSize {
 		rf.roll()
 	}
-	n, err = rf.currentFile.Write(p)
+	n, err = rf.bufWriter.Write(p)
 	rf.currentSize += int64(n)
+	rf.bytesSinceLastFlush += int64(n)
 	return
+}
+
+func (rf *rollingFile) flush() {
+	rf.Lock()
+	if rf.bytesSinceLastFlush > 0 {
+		rf.bufWriter.Flush()
+		rf.bytesSinceLastFlush = 0
+	}
+	rf.Unlock()
 }
 
 func (rf *rollingFile) open() error {
 	var err error
-	rf.currentFile, err = openLogFile(rf.name)
+	rf.file, err = openLogFile(rf.name)
 	if err != nil {
 		return err
 	}
-	finfo, err := rf.currentFile.Stat()
+	rf.bufWriter = bufio.NewWriter(rf.file)
+	finfo, err := rf.file.Stat()
 	if err != nil {
 		return err
 	}
 	rf.currentSize = finfo.Size()
+	openRollingFiles = append(openRollingFiles, rf)
 	return nil
 }
 
 func (rf *rollingFile) roll() error {
 	// FUTURE: Support more than one roll.
-	rf.currentFile.Close()
-	archivedFile := rf.currentFile.Name() + ".1"
+	rf.bufWriter.Flush()
+	rf.file.Close()
+	archivedFile := rf.file.Name() + ".1"
 	// Remove old archive and copy over existing
 	os.Remove(archivedFile)
-	os.Rename(rf.currentFile.Name(), archivedFile)
+	os.Rename(rf.file.Name(), archivedFile)
 	return rf.open()
 }
 
 func openLogFile(name string) (f *os.File, err error) {
 	f, err = os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
-	if err == nil {
-		openLogFiles[name] = f
-	}
 	return
 }
 
+// NewFileLogger implements a rolling logger with default maximum size (50Mb)
 func NewFileLogger(file string) (logger *log.Logger) {
 	return NewFileLoggerWithMaxSize(file, defaultMaxSize)
 }
 
+// NewFileLoggerWithMaxSize implements a rolling logger with a set size
 func NewFileLoggerWithMaxSize(file string, maxSize int64) (logger *log.Logger) {
 	rf, err := newRollingFile(file, maxSize)
+	// This trick ensures that the flusher goroutine does not keep
+	// the returned wrapper object from being garbage collected. When it is
+	// garbage collected, the finalizer stops the janitor goroutine, after
+	// which rw can be collected.
+	rfWrapper := &rollingFileWrapper{rf}
+	runtime.SetFinalizer(rfWrapper, stopFlusher)
 	if err == nil {
-		logger = log.New(rf, "", log.Ldate|log.Ltime)
+		logger = log.New(rfWrapper, "", log.Ldate|log.Ltime)
 	} else {
 		fmt.Fprintf(os.Stderr, "WARNING: Unable to set up log file: %v\n", err)
 		logger = NewNilLogger()
@@ -105,18 +165,21 @@ func NewFileLoggerWithMaxSize(file string, maxSize int64) (logger *log.Logger) {
 	return logger
 }
 
-// Convenience method - really to just help with testing
+// CloseAllOpenFileLoggers is a convenience method for tests
 func CloseAllOpenFileLoggers() {
-	for name, file := range openLogFiles {
-		file.Close()
-		delete(openLogFiles, name)
+	for _, rf := range openRollingFiles {
+		rf.bufWriter.Flush()
+		rf.file.Close()
 	}
+	openRollingFiles = []*rollingFile{}
 }
 
+// NewNilLogger is a logger noop/discade implementation
 func NewNilLogger() *log.Logger {
 	return log.New(ioutil.Discard, "", 0)
 }
 
+// NewConsoleLogger is a basic logger to Stderr
 func NewConsoleLogger() (logger *log.Logger) {
 	logger = log.New(os.Stderr, "", log.Ldate|log.Ltime)
 	return logger

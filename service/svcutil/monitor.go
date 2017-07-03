@@ -1,23 +1,72 @@
-// SILVER - Service Wrapper
-//
-// Copyright (c) 2014 PaperCut Software http://www.papercut.com/
-// Use of this source code is governed by an MIT or GPL Version 2 license.
-// See the project's LICENSE file for more information.
-//
-
-package run
+package svcutil
 
 import (
+	"errors"
 	"fmt"
+	"log"
+	"net"
+	"net/url"
 	"os"
 	"strings"
 	"sync"
 	"time"
-
-	"errors"
-	"net"
-	"net/url"
 )
+
+type MonitorConfig struct {
+	URL                   string
+	StartupDelay          time.Duration
+	Interval              time.Duration
+	Timeout               time.Duration
+	RestartOnFailureCount int
+}
+
+type serviceMonitor struct {
+	config      MonitorConfig
+	logger      *log.Logger
+	serviceName string
+}
+
+func (sm *serviceMonitor) start(terminate chan struct{}) chan struct{} {
+	monitor := make(chan struct{})
+	go func() {
+		time.Sleep(sm.config.StartupDelay)
+		failureCount := 0
+		sm.logf("Starting monitor on '%s' (%s)", sm.serviceName, sm.config.URL)
+	isTerminate:
+		for {
+			select {
+			case <-time.After(sm.config.Interval):
+			case <-terminate:
+				break isTerminate
+			}
+			ok, err := pingURL(sm.config.URL, sm.config.Timeout)
+			if ok {
+				// Did the monitor report another error?
+				if err != nil {
+					sm.logf("%s: Monitor ping error '%v'", sm.serviceName, err)
+				}
+				failureCount = 0
+			} else {
+				failureCount++
+				sm.logf("%s: Monitor detected error - '%v'", sm.serviceName, err)
+			}
+			if failureCount > sm.config.RestartOnFailureCount {
+				sm.logf("%s: Service not responding. Forcing shutdown. (failures: %d)",
+					sm.serviceName, failureCount)
+				break isTerminate
+			}
+
+		}
+		close(monitor)
+	}()
+	return monitor
+}
+
+func (sm *serviceMonitor) logf(format string, v ...interface{}) {
+	if sm.logger != nil {
+		sm.logger.Printf("%s: %s", sm.serviceName, fmt.Sprintf(format, v...))
+	}
+}
 
 var pingFileCache = struct {
 	sync.Mutex
