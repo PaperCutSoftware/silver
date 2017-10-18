@@ -88,7 +88,7 @@ func main() {
 func verifyEnv() {
 	if _, err := exec.LookPath("godep"); err != nil {
 		fmt.Println("Please install godep. Run:")
-		fmt.Println("   go make.go setup")
+		fmt.Println("   go run make.go setup")
 	}
 }
 
