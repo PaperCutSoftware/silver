@@ -27,6 +27,7 @@ type Config struct {
 	StartupTasks       []StartupTask
 	ScheduledTasks     []ScheduledTask
 	Commands           []Command
+	ServiceUserName    string
 }
 
 type ServiceDescription struct {
