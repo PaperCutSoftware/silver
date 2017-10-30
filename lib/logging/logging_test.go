@@ -12,7 +12,7 @@ import (
 func TestStandardLogging(t *testing.T) {
 	lname := fmt.Sprintf("%s/test-standard-log-%d.log", os.TempDir(), time.Now().Unix())
 
-	logger := NewFileLogger(lname)
+	logger := NewFileLogger(lname, "")
 	defer func() {
 		os.Remove(lname)
 	}()
@@ -35,7 +35,7 @@ func TestRollingLog(t *testing.T) {
 	lname := fmt.Sprintf("%s/test-rolling-log-%d.log", os.TempDir(), time.Now().Unix())
 	rname := lname + ".1"
 
-	logger := NewFileLoggerWithMaxSize(lname, 1024)
+	logger := NewFileLoggerWithMaxSize(lname, "", 1024)
 	defer func() {
 		os.Remove(lname)
 		os.Remove(rname)
@@ -70,7 +70,7 @@ func TestRollingLogFlush_IsFlushed(t *testing.T) {
 	// Arrange
 	//lname := fmt.Sprintf("%s/test-flushed-log-%d.log", os.TempDir(), time.Now().Unix())
 	lname := fmt.Sprintf("test-flushed-log-%d.log", time.Now().Unix())
-	logger := NewFileLoggerWithMaxSize(lname, 10024)
+	logger := NewFileLoggerWithMaxSize(lname, "", 10024)
 	defer func() {
 		CloseAllOpenFileLoggers()
 		os.Remove(lname)
