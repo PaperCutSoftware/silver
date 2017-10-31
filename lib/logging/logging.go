@@ -20,9 +20,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
-	"os/user"
 	"runtime"
-	"strconv"
 	"sync"
 	"time"
 )
@@ -146,22 +144,7 @@ func openLogFile(name string, owner string) (f *os.File, err error) {
 	if err != nil {
 		return
 	}
-	// If owner is defined, change the owner of the log file to this user
-	if owner != "" {
-		ownerUser, err := user.Lookup(owner)
-		if err != nil {
-			return f, err
-		}
-		uid, err := strconv.Atoi(ownerUser.Uid)
-		if err != nil {
-			return f, err
-		}
-		gid, err := strconv.Atoi(ownerUser.Gid)
-		if err != nil {
-			return f, err
-		}
-		os.Chown(name, uid, gid)
-	}
+	err = changeOwnerOfFile(name, owner)
 	return
 }
 
