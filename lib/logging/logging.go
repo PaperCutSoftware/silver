@@ -31,8 +31,10 @@ const (
 )
 
 var (
-	openRollingFiles = []*rollingFile{}
+ 	openRollingFiles = []*rollingFile{}
+ 	changeOwnerOfFileFunc func(name, owner string) error
 )
+
 
 // Why a wrapper - see finalizer comment below.
 type rollingFileWrapper struct {
@@ -42,6 +44,7 @@ type rollingFileWrapper struct {
 type rollingFile struct {
 	sync.Mutex
 	name                string
+	owner               string
 	file                *os.File
 	maxSize             int64
 	bufWriter           *bufio.Writer
@@ -53,6 +56,10 @@ type rollingFile struct {
 type flusher struct {
 	interval time.Duration
 	stop     chan struct{}
+}
+
+func init() {
+	changeOwnerOfFileFunc = changeOwnerOfFile
 }
 
 func (f *flusher) run(rf *rollingFile) {
@@ -71,12 +78,13 @@ func stopFlusher(rfw *rollingFileWrapper) {
 	close(rfw.flusher.stop)
 }
 
-func newRollingFile(name string, maxSize int64) (rf *rollingFile, err error) {
+func newRollingFile(name string, owner string, maxSize int64) (rf *rollingFile, err error) {
 	if maxSize <= 0 {
 		maxSize = defaultMaxSize
 	}
 	rf = &rollingFile{
 		name:    name,
+		owner:   owner,
 		maxSize: maxSize,
 		flusher: &flusher{
 			interval: defaultFlushInterval,
@@ -112,7 +120,7 @@ func (rf *rollingFile) flush() {
 
 func (rf *rollingFile) open() error {
 	var err error
-	rf.file, err = openLogFile(rf.name)
+	rf.file, err = openLogFile(rf.name, rf.owner)
 	if err != nil {
 		return err
 	}
@@ -137,19 +145,23 @@ func (rf *rollingFile) roll() error {
 	return rf.open()
 }
 
-func openLogFile(name string) (f *os.File, err error) {
+func openLogFile(name string, owner string) (f *os.File, err error) {
 	f, err = os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	if err != nil {
+		return
+	}
+	err = changeOwnerOfFileFunc(name, owner)
 	return
 }
 
 // NewFileLogger implements a rolling logger with default maximum size (50Mb)
-func NewFileLogger(file string) (logger *log.Logger) {
-	return NewFileLoggerWithMaxSize(file, defaultMaxSize)
+func NewFileLogger(file string, owner string) (logger *log.Logger) {
+	return NewFileLoggerWithMaxSize(file, owner, defaultMaxSize)
 }
 
 // NewFileLoggerWithMaxSize implements a rolling logger with a set size
-func NewFileLoggerWithMaxSize(file string, maxSize int64) (logger *log.Logger) {
-	rf, err := newRollingFile(file, maxSize)
+func NewFileLoggerWithMaxSize(file string, owner string, maxSize int64) (logger *log.Logger) {
+	rf, err := newRollingFile(file, owner, maxSize)
 	// This trick ensures that the flusher goroutine does not keep
 	// the returned wrapper object from being garbage collected. When it is
 	// garbage collected, the finalizer stops the janitor goroutine, after
