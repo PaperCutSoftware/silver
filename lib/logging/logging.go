@@ -31,8 +31,10 @@ const (
 )
 
 var (
-	openRollingFiles = []*rollingFile{}
+ 	openRollingFiles = []*rollingFile{}
+ 	changeOwnerOfFileFunc func(name, owner string) error
 )
+
 
 // Why a wrapper - see finalizer comment below.
 type rollingFileWrapper struct {
@@ -54,6 +56,10 @@ type rollingFile struct {
 type flusher struct {
 	interval time.Duration
 	stop     chan struct{}
+}
+
+func init() {
+	changeOwnerOfFileFunc = changeOwnerOfFile
 }
 
 func (f *flusher) run(rf *rollingFile) {
@@ -144,7 +150,7 @@ func openLogFile(name string, owner string) (f *os.File, err error) {
 	if err != nil {
 		return
 	}
-	err = changeOwnerOfFile(name, owner)
+	err = changeOwnerOfFileFunc(name, owner)
 	return
 }
 
