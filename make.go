@@ -109,6 +109,10 @@ func buildAll() {
 	runCmd("godep", "go", "build", "-o", makeOutputPath(buildOutputDir, "updater"), rootNamespace+"/updater")
 	runCmd("godep", "go", "build", "-o", makeOutputPath(buildOutputDir, "service"), rootNamespace+"/service")
 	runCmd("godep", "go", "build", "-tags", "nohttp", "-o", makeOutputPath(buildOutputDir, "service-no-http"), rootNamespace+"/service")
+	if runtime.GOOS == "windows" {
+		runCmd("godep", "go", "build", "-tags", "nohttp", "-ldflags", "-H=windowsgui", "-o", makeOutputPath(buildOutputDir, "service-no-window"), rootNamespace+"/service")
+		runCmd("godep", "go", "build", "-ldflags", "-H=windowsgui", "-o", makeOutputPath(buildOutputDir, "updater-no-window"), rootNamespace+"/updater")
+	}
 
 	fmt.Printf("\nCOMPLETE. You'll find the files in:\n    '%s'\n", buildOutputDir)
 
