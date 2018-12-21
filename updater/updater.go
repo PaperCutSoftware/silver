@@ -32,6 +32,10 @@ import (
 	"regexp"
 	"strings"
 	"time"
+    "bufio"
+    "crypto/rand"
+    "math"
+    "math/big"
 
 	"github.com/PaperCutSoftware/silver/lib/pathutils"
 )
@@ -42,6 +46,7 @@ var (
 	overrideVersion = flag.String("c", "", "Override current installed version")
 	httpProxy       = flag.String("p", "", "Set HTTP proxy in format http://server:port")
 	unsafeHTTP      = flag.Bool("unsafe", false, "Debug Only: Support non-https update checks for testing.")
+	sendIdProfile   = flag.Bool("i", false, "Send identity profile when checking for new version.")
 )
 
 type UpgradeInfo struct {
@@ -212,6 +217,81 @@ func fileSize(file string) (size int64, err error) {
 	return fi.Size(), nil
 }
 
+func addIdProfileToRequestHeader(req *http.Request) {
+    // Best effort to add identity profile to header.
+    // Errors are logged allowing normal operation.
+    //
+    // Profile information file will contain a set of key/value pairs.
+    // Each key/value pair will be read and added to the request header.
+    // Can add any number of key/value pairs.
+    // Key "identity" is used to store the customer id.
+    // Key "timezone" is not stored in the file but added to the header.
+    // Ex:
+    // identity=192837465
+    // channel=stable
+    const profileFileName string = "identity.profile"
+    const customHeader string = "X-profile-"
+    const idHeaderStr string = customHeader+"identity"
+    const timezoneHeaderStr string = customHeader+"timezone"
+
+    // Add timezone. Gives a broad geo location.
+    t := time.Now()
+    zone, _ := t.Zone()
+    req.Header.Set(timezoneHeaderStr, zone)
+
+    // Add information from profile.
+    // File containing the profile info should exist with the updater binary.
+    updaterBin, err := os.Executable()
+    if err != nil {
+        fmt.Errorf("Error retrieving executable path %s", err.Error())
+        return
+    }
+    // Construct file name with absolute path.
+    profileFile := filepath.Join(filepath.Dir(updaterBin), profileFileName)
+    // Open profile, if it doesn't exist create one.
+    fp, err := os.OpenFile(profileFile, os.O_CREATE|os.O_RDWR, 0644)
+    if err != nil {
+        fmt.Errorf("Error accessing identity profile. File: %s, Error: %s",
+                   profileFile, err.Error())
+        return
+    }
+    defer fp.Close()
+    // If size is zero, then generate an "identity" and write to the file.
+    fpStat, err := fp.Stat()
+    if err != nil {
+        fmt.Errorf("Error accessing identity profile. File: %s, Error: %s",
+                   profileFile, err.Error())
+        return
+    }
+    if fpStat.Size() == 0 {
+        // Write id to file.
+        nRand, err := rand.Int(rand.Reader, big.NewInt(math.MaxInt64))
+        if err != nil {
+            fmt.Errorf("Error trying to generate a random number for identity")
+            return
+        }
+        str := fmt.Sprintf("%s=%d\n", idHeaderStr, nRand)
+        fp.WriteString(str);
+        // Seek the file pointer to start of file.
+        if ret, err := fp.Seek(0, 0); ret != 0 || err != nil {
+            fmt.Errorf("Error accessing identity profile. File: %s, Error: %s",
+                       profileFile, err.Error())
+            return
+        }
+    }
+
+    scanner := bufio.NewScanner(fp) //Using defalt split function to scan line by line.
+    for scanner.Scan() {
+        keyVal := strings.Split(scanner.Text(), "=")
+        if len(keyVal) == 2  &&
+           len(strings.Trim(keyVal[0], " \r\n\t")) > 0 &&
+           len(strings.Trim(keyVal[1], " \r\n\t")) > 0 {
+            // Only resonably formed lines in the form of "key = value" are used.
+            req.Header.Set(customHeader+keyVal[0], keyVal[1])
+        }
+    }
+}
+
 func checkUpdate(url string, currentVer string) (*UpgradeInfo, error) {
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", url+"?version="+currentVer, nil)
@@ -219,6 +299,9 @@ func checkUpdate(url string, currentVer string) (*UpgradeInfo, error) {
 		return nil, err
 	}
 	req.Header.Set("User-Agent", "Update Check")
+    if *sendIdProfile {
+        addIdProfileToRequestHeader(req)
+    }
 
 	res, err := client.Do(req)
 	if err != nil {
