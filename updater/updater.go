@@ -15,6 +15,7 @@ package main
 
 import (
 	"archive/zip"
+	"crypto/rand"
 	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/json"
@@ -24,6 +25,8 @@ import (
 	"hash"
 	"io"
 	"io/ioutil"
+	"math"
+	"math/big"
 	"net/http"
 	"net/url"
 	"os"
@@ -32,10 +35,6 @@ import (
 	"regexp"
 	"strings"
 	"time"
-    "bufio"
-    "crypto/rand"
-    "math"
-    "math/big"
 
 	"github.com/PaperCutSoftware/silver/lib/pathutils"
 )
@@ -46,7 +45,19 @@ var (
 	overrideVersion = flag.String("c", "", "Override current installed version")
 	httpProxy       = flag.String("p", "", "Set HTTP proxy in format http://server:port")
 	unsafeHTTP      = flag.Bool("unsafe", false, "Debug Only: Support non-https update checks for testing.")
-	sendIdProfile   = flag.Bool("i", false, "Send identity profile when checking for new version.")
+)
+
+const (
+	profileFileName   string = "updater-profile.conf"
+	keyIdentity       string = "identity"
+	keyChannel        string = "channel"
+	valChannelStable  string = "stable"
+	valChannelBeta    string = "beta"
+	valChannelExp     string = "experimental"
+	customHeader      string = "X-profile-"
+	idHeaderStr       string = customHeader + keyIdentity
+	channelHeaderStr  string = customHeader + keyChannel
+	timezoneHeaderStr string = customHeader + "timezone"
 )
 
 type UpgradeInfo struct {
@@ -62,14 +73,49 @@ type Operation struct {
 	Args   []string
 }
 
+type Profile struct {
+	Id      string `json:"id"`
+	Channel string `json:"channel"`
+}
+
 func usage() {
 	exeName := filepath.Base(os.Args[0])
 	fmt.Fprintf(os.Stderr, "usage: %s [flags] [update url]\n", exeName)
 	flag.PrintDefaults()
+	fmt.Fprintf(os.Stderr, "To generage or modify profile\n")
+	fmt.Fprintf(os.Stderr, "  profile-set-random-id\n")
+	fmt.Fprintf(os.Stderr, "\tGenerate a unique random id for this installation.\n")
+	fmt.Fprintf(os.Stderr, "  profile-set-id <id-string>\n")
+	fmt.Fprintf(os.Stderr, "\tUse the id-string as the unique identity.\n")
+	fmt.Fprintf(os.Stderr, "  profile-set-channel <channel-string>\n")
+	fmt.Fprintf(os.Stderr, "\tUse the channel-string as the distribution channel.\n")
 	os.Exit(2)
 }
 
 func main() {
+
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "profile-set-random-id":
+			if len(os.Args) == 2 {
+				os.Exit(setRandomProfileId())
+			} else {
+				usage()
+			}
+		case "profile-set-id":
+			if len(os.Args) == 3 {
+				os.Exit(setProfileId(os.Args[2]))
+			} else {
+				usage()
+			}
+		case "profile-set-channel":
+			if len(os.Args) == 3 {
+				os.Exit(setProfileChannel(os.Args[2]))
+			} else {
+				usage()
+			}
+		}
+	}
 
 	flag.Usage = usage
 	flag.Parse()
@@ -205,6 +251,135 @@ func upgradeIfRequired(checkURL string) (upgraded bool, err error) {
 	return true, nil
 }
 
+func getProfileFileName() (string, error) {
+	// File containing the profile info should exist with the updater binary.
+	updaterBin, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	// Construct file name with absolute path.
+	profileFile := filepath.Join(filepath.Dir(updaterBin), profileFileName)
+	return profileFile, nil
+}
+
+func validateProfile(prf *Profile) error {
+	isAlphaNumeric := regexp.MustCompile(`^[A-Za-z0-9]+$`).MatchString
+	// Should validate the id string and channel.
+	// For now lets assume id string is less than 256
+	// characters and alphanumeric.
+	// Channel to be alphanemeric and less than 10 characters.
+	if !isAlphaNumeric(prf.Id) ||
+		!isAlphaNumeric(prf.Channel) ||
+		len(prf.Id) > 256 ||
+		len(prf.Channel) > 10 {
+		return errors.New("Profile Id or Channel format is invalid.")
+	}
+	return nil
+}
+
+func loadProfile(prf *Profile) (err error) {
+	var fn string
+	var data []byte
+	if fn, err = getProfileFileName(); err != nil {
+		return err
+	}
+	if data, err = ioutil.ReadFile(fn); err != nil {
+		return err
+	}
+	if err = json.Unmarshal(data, prf); err != nil {
+		return err
+	}
+	return validateProfile(prf)
+}
+
+func saveProfile(prf *Profile) (err error) {
+	var fn string
+	var data []byte
+	if fn, err = getProfileFileName(); err != nil {
+		return err
+	}
+	if data, err = json.Marshal(prf); err != nil {
+		return err
+	}
+	return ioutil.WriteFile(fn, data, 0600)
+}
+
+func setRandomProfileId() int {
+	prf := Profile{}
+	nRand, err := rand.Int(rand.Reader, big.NewInt(math.MaxInt64))
+	if err != nil {
+		fmt.Errorf("Error: %s\n", err.Error())
+		return 1
+	}
+	prf.Id = fmt.Sprintf("%s", nRand)
+	prf.Channel = valChannelStable
+	if errSave := saveProfile(&prf); errSave != nil {
+		fmt.Errorf("Error: %s\n", errSave.Error())
+		return 1
+	}
+	return 0
+}
+
+func setProfileId(id string) int {
+	prf := Profile{}
+	err := loadProfile(&prf)
+	prf.Id = id
+	if err != nil {
+		// Profile load failed. Doesn't exist or corrupted.
+		// Set channel as well.
+		prf.Channel = valChannelStable
+	}
+	if errSave := saveProfile(&prf); errSave != nil {
+		fmt.Errorf("Error: %s.\n", errSave.Error())
+		return 1
+	}
+	return 0
+}
+
+func setProfileChannel(channel string) int {
+	prf := Profile{}
+	err := loadProfile(&prf)
+	prf.Channel = channel
+	if err != nil {
+		// Profile load failed. Doesn't exist or corrupted.
+		// Set id as well.
+		nRand, errRandInt := rand.Int(rand.Reader, big.NewInt(math.MaxInt64))
+		if errRandInt != nil {
+			fmt.Errorf("Error: %s\n", errRandInt.Error())
+			return 1
+		}
+		prf.Id = fmt.Sprintf("%s", nRand)
+	}
+	if errSave := saveProfile(&prf); errSave != nil {
+		fmt.Errorf("Error: %s.\n", errSave.Error())
+		return 1
+	}
+	return 0
+}
+
+func addIdProfileToRequestHeader(req *http.Request) {
+	// Best effort to add identity profile to header.
+	// Errors are logged allowing normal operation.
+
+	// Add timezone. Gives a broad geo location.
+	t := time.Now()
+	zone, _ := t.Zone()
+	req.Header.Set(timezoneHeaderStr, zone)
+
+	// Add profile.
+	prf := Profile{}
+	if err := loadProfile(&prf); err != nil {
+		fmt.Printf("Couldn't load profile: %s.\n", err.Error())
+		return
+	}
+	if len(prf.Id) > 0 {
+		req.Header.Set(idHeaderStr, prf.Id)
+	}
+	if len(prf.Channel) > 0 {
+		req.Header.Set(channelHeaderStr, prf.Channel)
+	}
+}
+
 func fileSize(file string) (size int64, err error) {
 	f, err := os.Open(file)
 	if err != nil {
@@ -217,81 +392,6 @@ func fileSize(file string) (size int64, err error) {
 	return fi.Size(), nil
 }
 
-func addIdProfileToRequestHeader(req *http.Request) {
-    // Best effort to add identity profile to header.
-    // Errors are logged allowing normal operation.
-    //
-    // Profile information file will contain a set of key/value pairs.
-    // Each key/value pair will be read and added to the request header.
-    // Can add any number of key/value pairs.
-    // Key "identity" is used to store the customer id.
-    // Key "timezone" is not stored in the file but added to the header.
-    // Ex:
-    // identity=192837465
-    // channel=stable
-    const profileFileName string = "identity.profile"
-    const customHeader string = "X-profile-"
-    const idHeaderStr string = customHeader+"identity"
-    const timezoneHeaderStr string = customHeader+"timezone"
-
-    // Add timezone. Gives a broad geo location.
-    t := time.Now()
-    zone, _ := t.Zone()
-    req.Header.Set(timezoneHeaderStr, zone)
-
-    // Add information from profile.
-    // File containing the profile info should exist with the updater binary.
-    updaterBin, err := os.Executable()
-    if err != nil {
-        fmt.Errorf("Error retrieving executable path %s", err.Error())
-        return
-    }
-    // Construct file name with absolute path.
-    profileFile := filepath.Join(filepath.Dir(updaterBin), profileFileName)
-    // Open profile, if it doesn't exist create one.
-    fp, err := os.OpenFile(profileFile, os.O_CREATE|os.O_RDWR, 0644)
-    if err != nil {
-        fmt.Errorf("Error accessing identity profile. File: %s, Error: %s",
-                   profileFile, err.Error())
-        return
-    }
-    defer fp.Close()
-    // If size is zero, then generate an "identity" and write to the file.
-    fpStat, err := fp.Stat()
-    if err != nil {
-        fmt.Errorf("Error accessing identity profile. File: %s, Error: %s",
-                   profileFile, err.Error())
-        return
-    }
-    if fpStat.Size() == 0 {
-        // Write id to file.
-        nRand, err := rand.Int(rand.Reader, big.NewInt(math.MaxInt64))
-        if err != nil {
-            fmt.Errorf("Error trying to generate a random number for identity")
-            return
-        }
-        str := fmt.Sprintf("%s=%d\n", idHeaderStr, nRand)
-        fp.WriteString(str);
-        // Seek the file pointer to start of file.
-        if ret, err := fp.Seek(0, 0); ret != 0 || err != nil {
-            fmt.Errorf("Error accessing identity profile. File: %s, Error: %s",
-                       profileFile, err.Error())
-            return
-        }
-    }
-
-    scanner := bufio.NewScanner(fp) //Using defalt split function to scan line by line.
-    for scanner.Scan() {
-        keyVal := strings.Split(scanner.Text(), "=")
-        if len(keyVal) == 2  &&
-           len(strings.Trim(keyVal[0], " \r\n\t")) > 0 &&
-           len(strings.Trim(keyVal[1], " \r\n\t")) > 0 {
-            // Only resonably formed lines in the form of "key = value" are used.
-            req.Header.Set(customHeader+keyVal[0], keyVal[1])
-        }
-    }
-}
-
 func checkUpdate(url string, currentVer string) (*UpgradeInfo, error) {
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", url+"?version="+currentVer, nil)
@@ -299,9 +399,7 @@ func checkUpdate(url string, currentVer string) (*UpgradeInfo, error) {
 		return nil, err
 	}
 	req.Header.Set("User-Agent", "Update Check")
-    if *sendIdProfile {
-        addIdProfileToRequestHeader(req)
-    }
+	addIdProfileToRequestHeader(req)
 
 	res, err := client.Do(req)
 	if err != nil {
