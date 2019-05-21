@@ -277,6 +277,14 @@ func validateProfile(prf *Profile) error {
 	return nil
 }
 
+func generateRandomIdString() (string, error) {
+	nRand, err := rand.Int(rand.Reader, big.NewInt(math.MaxInt64))
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s", nRand), nil
+}
+
 func loadProfile(prf *Profile) (err error) {
 	var fn string
 	var data []byte
@@ -305,16 +313,17 @@ func saveProfile(prf *Profile) (err error) {
 }
 
 func setRandomProfileId() int {
-	prf := Profile{}
-	nRand, err := rand.Int(rand.Reader, big.NewInt(math.MaxInt64))
+	strRand, err := generateRandomIdString()
 	if err != nil {
-		fmt.Errorf("Error: %s\n", err.Error())
+		fmt.Errorf("Error: %v\n", err)
 		return 1
 	}
-	prf.Id = fmt.Sprintf("%s", nRand)
-	prf.Channel = valChannelStable
-	if errSave := saveProfile(&prf); errSave != nil {
-		fmt.Errorf("Error: %s\n", errSave.Error())
+	prf := Profile{
+		Id:      strRand,
+		Channel: valChannelStable,
+	}
+	if err = saveProfile(&prf); err != nil {
+		fmt.Errorf("Error: %v\n", err)
 		return 1
 	}
 	return 0
@@ -329,8 +338,8 @@ func setProfileId(id string) int {
 		// Set channel as well.
 		prf.Channel = valChannelStable
 	}
-	if errSave := saveProfile(&prf); errSave != nil {
-		fmt.Errorf("Error: %s.\n", errSave.Error())
+	if err = saveProfile(&prf); err != nil {
+		fmt.Errorf("Error: %v.\n", err)
 		return 1
 	}
 	return 0
@@ -343,15 +352,15 @@ func setProfileChannel(channel string) int {
 	if err != nil {
 		// Profile load failed. Doesn't exist or corrupted.
 		// Set id as well.
-		nRand, errRandInt := rand.Int(rand.Reader, big.NewInt(math.MaxInt64))
-		if errRandInt != nil {
-			fmt.Errorf("Error: %s\n", errRandInt.Error())
+		strRand, errRand := generateRandomIdString()
+		if errRand != nil {
+			fmt.Errorf("Error: %v\n", errRand)
 			return 1
 		}
-		prf.Id = fmt.Sprintf("%s", nRand)
+		prf.Id = strRand
 	}
-	if errSave := saveProfile(&prf); errSave != nil {
-		fmt.Errorf("Error: %s.\n", errSave.Error())
+	if err = saveProfile(&prf); err != nil {
+		fmt.Errorf("Error: %v.\n", err)
 		return 1
 	}
 	return 0
@@ -369,7 +378,7 @@ func addIdProfileToRequestHeader(req *http.Request) {
 	// Add profile.
 	prf := Profile{}
 	if err := loadProfile(&prf); err != nil {
-		fmt.Printf("Couldn't load profile: %s.\n", err.Error())
+		fmt.Printf("Couldn't load profile: %v.\n", err)
 		return
 	}
 	if len(prf.Id) > 0 {
