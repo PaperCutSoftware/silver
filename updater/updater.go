@@ -48,16 +48,13 @@ var (
 )
 
 const (
-	profileFileName   string = "updater-profile.conf"
-	keyIdentity       string = "identity"
-	keyChannel        string = "channel"
-	valChannelStable  string = "stable"
-	valChannelBeta    string = "beta"
-	valChannelExp     string = "experimental"
-	customHeader      string = "X-profile-"
-	idHeaderStr       string = customHeader + keyIdentity
-	channelHeaderStr  string = customHeader + keyChannel
-	timezoneHeaderStr string = customHeader + "timezone"
+	profileFileName          string = "updater-profile.conf"
+	valChannelStable         string = "stable"
+	valChannelBeta           string = "beta"
+	valChannelExp            string = "experimental"
+	headerProfileIDKey       string = "X-profile-identity"
+	headerProfileChannelKey  string = "X-profile-channel"
+	headerProfileTimezoneKey string = "X-profile-timezone"
 )
 
 type UpgradeInfo struct {
@@ -80,15 +77,15 @@ type Profile struct {
 
 func usage() {
 	exeName := filepath.Base(os.Args[0])
-	fmt.Fprintf(os.Stderr, "usage: %s [flags] [update url]\n", exeName)
+	fmt.Fprintf(os.Stdout, "usage: %s [flags] [update url]\n", exeName)
 	flag.PrintDefaults()
-	fmt.Fprintf(os.Stderr, "To generage or modify profile\n")
-	fmt.Fprintf(os.Stderr, "  profile-set-random-id\n")
-	fmt.Fprintf(os.Stderr, "\tGenerate a unique random id for this installation.\n")
-	fmt.Fprintf(os.Stderr, "  profile-set-id <id-string>\n")
-	fmt.Fprintf(os.Stderr, "\tUse the id-string as the unique identity.\n")
-	fmt.Fprintf(os.Stderr, "  profile-set-channel <channel-string>\n")
-	fmt.Fprintf(os.Stderr, "\tUse the channel-string as the distribution channel.\n")
+	fmt.Fprintf(os.Stdout, "To generate or modify profile\n")
+	fmt.Fprintf(os.Stdout, "  profile-set-random-id\n")
+	fmt.Fprintf(os.Stdout, "\tGenerate a unique random id for this installation.\n")
+	fmt.Fprintf(os.Stdout, "  profile-set-id <id-string>\n")
+	fmt.Fprintf(os.Stdout, "\tUse the id-string as the unique identity.\n")
+	fmt.Fprintf(os.Stdout, "  profile-set-channel <channel-string>\n")
+	fmt.Fprintf(os.Stdout, "\tUse the channel-string as the distribution channel.\n")
 	os.Exit(2)
 }
 
@@ -315,18 +312,10 @@ func saveProfile(prf *Profile) (err error) {
 func setRandomProfileId() int {
 	strRand, err := generateRandomIdString()
 	if err != nil {
-		fmt.Errorf("Error: %v\n", err)
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 		return 1
 	}
-	prf := Profile{
-		Id:      strRand,
-		Channel: valChannelStable,
-	}
-	if err = saveProfile(&prf); err != nil {
-		fmt.Errorf("Error: %v\n", err)
-		return 1
-	}
-	return 0
+	return setProfileId(strRand)
 }
 
 func setProfileId(id string) int {
@@ -339,7 +328,7 @@ func setProfileId(id string) int {
 		prf.Channel = valChannelStable
 	}
 	if err = saveProfile(&prf); err != nil {
-		fmt.Errorf("Error: %v.\n", err)
+		fmt.Fprintf(os.Stderr, "Error: %v.\n", err)
 		return 1
 	}
 	return 0
@@ -354,13 +343,13 @@ func setProfileChannel(channel string) int {
 		// Set id as well.
 		strRand, errRand := generateRandomIdString()
 		if errRand != nil {
-			fmt.Errorf("Error: %v\n", errRand)
+			fmt.Fprintf(os.Stderr, "Error: %v\n", errRand)
 			return 1
 		}
 		prf.Id = strRand
 	}
 	if err = saveProfile(&prf); err != nil {
-		fmt.Errorf("Error: %v.\n", err)
+		fmt.Fprintf(os.Stderr, "Error: %v.\n", err)
 		return 1
 	}
 	return 0
@@ -373,7 +362,7 @@ func addIdProfileToRequestHeader(req *http.Request) {
 	// Add timezone. Gives a broad geo location.
 	t := time.Now()
 	zone, _ := t.Zone()
-	req.Header.Set(timezoneHeaderStr, zone)
+	req.Header.Set(headerProfileTimezoneKey, zone)
 
 	// Add profile.
 	prf := Profile{}
@@ -382,10 +371,10 @@ func addIdProfileToRequestHeader(req *http.Request) {
 		return
 	}
 	if len(prf.Id) > 0 {
-		req.Header.Set(idHeaderStr, prf.Id)
+		req.Header.Set(headerProfileIDKey, prf.Id)
 	}
 	if len(prf.Channel) > 0 {
-		req.Header.Set(channelHeaderStr, prf.Channel)
+		req.Header.Set(headerProfileChannelKey, prf.Channel)
 	}
 }
 
