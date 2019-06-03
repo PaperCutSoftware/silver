@@ -42,7 +42,7 @@ type ServiceConfig struct {
 	LogFileMaxSizeMb int
 	PidFile          string
 	UserLevel        bool
-	ServiceUserName  string
+	UserName         string
 }
 
 type command struct {
