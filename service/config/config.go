@@ -27,7 +27,6 @@ type Config struct {
 	StartupTasks       []StartupTask
 	ScheduledTasks     []ScheduledTask
 	Commands           []Command
-	ServiceUserName    string
 }
 
 type ServiceDescription struct {
@@ -42,6 +41,8 @@ type ServiceConfig struct {
 	LogFile          string
 	LogFileMaxSizeMb int
 	PidFile          string
+	UserLevel        bool
+	UserName         string
 }
 
 type command struct {

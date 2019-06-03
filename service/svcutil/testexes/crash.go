@@ -10,8 +10,8 @@
 package main
 
 import (
-	"os"
 	"fmt"
+	"os"
 	"time"
 )
 

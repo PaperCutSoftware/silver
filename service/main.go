@@ -88,15 +88,16 @@ func osServiceControl(ctx *context) {
 	if logFile == "" {
 		logFile = serviceName() + ".log"
 	}
-	ctx.logger = logging.NewFileLoggerWithMaxSize(logFile, ctx.conf.ServiceUserName, maxSize)
+	ctx.logger = logging.NewFileLoggerWithMaxSize(logFile, ctx.conf.ServiceConfig.UserName, maxSize)
 
 	// Setup service
-        svcConfig := &service.Config{
-                Name:        serviceName(),
-                DisplayName: ctx.conf.ServiceDescription.DisplayName,
-                Description: ctx.conf.ServiceDescription.Description,
-                UserName:    ctx.conf.ServiceUserName,
-        }
+	svcConfig := &service.Config{
+		Name:        serviceName(),
+		DisplayName: ctx.conf.ServiceDescription.DisplayName,
+		Description: ctx.conf.ServiceDescription.Description,
+		UserName:    ctx.conf.ServiceConfig.UserName,
+		Option:      service.KeyValue{"UserService": ctx.conf.ServiceConfig.UserLevel},
+	}
 
 	osService := &osService{ctx: ctx}
 	svc, err := service.New(osService, svcConfig)
@@ -199,12 +200,12 @@ func proxyConfFile() string {
 
 func execCommand(ctx *context, args []string) {
 	/*
-	*  IMPORTANT:
-	*  Don't write to any log files, etc.  Commands are not system service code.
-	*  Commands should be thought of as a "symlink" style, and run under a different
-	*  user context.
-	*
-	*  args format: 1st element is the command. Any extras are appended to the command.
+	 *  IMPORTANT:
+	 *  Don't write to any log files, etc.  Commands are not system service code.
+	 *  Commands should be thought of as a "symlink" style, and run under a different
+	 *  user context.
+	 *
+	 *  args format: 1st element is the command. Any extras are appended to the command.
 	 */
 	if len(ctx.conf.Commands) == 0 {
 		fmt.Fprintf(os.Stderr, "There are no commands configured!\n")
