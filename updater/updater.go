@@ -15,6 +15,7 @@ package main
 
 import (
 	"archive/zip"
+	"crypto/rand"
 	"crypto/sha1"
 	"crypto/sha256"
 	"encoding/json"
@@ -24,6 +25,8 @@ import (
 	"hash"
 	"io"
 	"io/ioutil"
+	"math"
+	"math/big"
 	"net/http"
 	"net/url"
 	"os"
@@ -44,6 +47,16 @@ var (
 	unsafeHTTP      = flag.Bool("unsafe", false, "Debug Only: Support non-https update checks for testing.")
 )
 
+const (
+	profileFileName          string = "updater-profile.conf"
+	valChannelStable         string = "stable"
+	valChannelBeta           string = "beta"
+	valChannelExp            string = "experimental"
+	headerProfileIDKey       string = "X-profile-identity"
+	headerProfileChannelKey  string = "X-profile-channel"
+	headerProfileTimezoneKey string = "X-profile-timezone"
+)
+
 type UpgradeInfo struct {
 	URL        string
 	Version    string
@@ -57,14 +70,49 @@ type Operation struct {
 	Args   []string
 }
 
+type Profile struct {
+	Id      string `json:"id"`
+	Channel string `json:"channel"`
+}
+
 func usage() {
 	exeName := filepath.Base(os.Args[0])
-	fmt.Fprintf(os.Stderr, "usage: %s [flags] [update url]\n", exeName)
+	fmt.Fprintf(os.Stdout, "usage: %s [flags] [update url]\n", exeName)
 	flag.PrintDefaults()
+	fmt.Fprintf(os.Stdout, "To generate or modify profile\n")
+	fmt.Fprintf(os.Stdout, "  profile-set-random-id\n")
+	fmt.Fprintf(os.Stdout, "\tGenerate a unique random id for this installation.\n")
+	fmt.Fprintf(os.Stdout, "  profile-set-id <id-string>\n")
+	fmt.Fprintf(os.Stdout, "\tUse the id-string as the unique identity.\n")
+	fmt.Fprintf(os.Stdout, "  profile-set-channel <channel-string>\n")
+	fmt.Fprintf(os.Stdout, "\tUse the channel-string as the distribution channel.\n")
 	os.Exit(2)
 }
 
 func main() {
+
+	if len(os.Args) > 1 {
+		switch os.Args[1] {
+		case "profile-set-random-id":
+			if len(os.Args) == 2 {
+				os.Exit(setRandomProfileId())
+			} else {
+				usage()
+			}
+		case "profile-set-id":
+			if len(os.Args) == 3 {
+				os.Exit(setProfileId(os.Args[2]))
+			} else {
+				usage()
+			}
+		case "profile-set-channel":
+			if len(os.Args) == 3 {
+				os.Exit(setProfileChannel(os.Args[2]))
+			} else {
+				usage()
+			}
+		}
+	}
 
 	flag.Usage = usage
 	flag.Parse()
@@ -200,6 +248,136 @@ func upgradeIfRequired(checkURL string) (upgraded bool, err error) {
 	return true, nil
 }
 
+func getProfileFileName() (string, error) {
+	// File containing the profile info should exist with the updater binary.
+	updaterBin, err := os.Executable()
+	if err != nil {
+		return "", err
+	}
+	// Construct file name with absolute path.
+	profileFile := filepath.Join(filepath.Dir(updaterBin), profileFileName)
+	return profileFile, nil
+}
+
+func validateProfile(prf *Profile) error {
+	isAlphaNumeric := regexp.MustCompile(`^[A-Za-z0-9]+$`).MatchString
+	// Should validate the id string and channel.
+	// For now lets assume id string is less than 256
+	// characters and alphanumeric.
+	// Channel to be alphanemeric and less than 10 characters.
+	if !isAlphaNumeric(prf.Id) ||
+		!isAlphaNumeric(prf.Channel) ||
+		len(prf.Id) > 256 ||
+		len(prf.Channel) > 10 {
+		return errors.New("Profile Id or Channel format is invalid.")
+	}
+	return nil
+}
+
+func generateRandomIdString() (string, error) {
+	nRand, err := rand.Int(rand.Reader, big.NewInt(math.MaxInt64))
+	if err != nil {
+		return "", err
+	}
+	return fmt.Sprintf("%s", nRand), nil
+}
+
+func loadProfile(prf *Profile) (err error) {
+	var fn string
+	var data []byte
+	if fn, err = getProfileFileName(); err != nil {
+		return err
+	}
+	if data, err = ioutil.ReadFile(fn); err != nil {
+		return err
+	}
+	if err = json.Unmarshal(data, prf); err != nil {
+		return err
+	}
+	return validateProfile(prf)
+}
+
+func saveProfile(prf *Profile) (err error) {
+	var fn string
+	var data []byte
+	if fn, err = getProfileFileName(); err != nil {
+		return err
+	}
+	if data, err = json.Marshal(prf); err != nil {
+		return err
+	}
+	return ioutil.WriteFile(fn, data, 0600)
+}
+
+func setRandomProfileId() int {
+	strRand, err := generateRandomIdString()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		return 1
+	}
+	return setProfileId(strRand)
+}
+
+func setProfileId(id string) int {
+	prf := Profile{}
+	err := loadProfile(&prf)
+	prf.Id = id
+	if err != nil {
+		// Profile load failed. Doesn't exist or corrupted.
+		// Set channel as well.
+		prf.Channel = valChannelStable
+	}
+	if err = saveProfile(&prf); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v.\n", err)
+		return 1
+	}
+	return 0
+}
+
+func setProfileChannel(channel string) int {
+	prf := Profile{}
+	err := loadProfile(&prf)
+	prf.Channel = channel
+	if err != nil {
+		// Profile load failed. Doesn't exist or corrupted.
+		// Set id as well.
+		strRand, errRand := generateRandomIdString()
+		if errRand != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", errRand)
+			return 1
+		}
+		prf.Id = strRand
+	}
+	if err = saveProfile(&prf); err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v.\n", err)
+		return 1
+	}
+	return 0
+}
+
+func addIdProfileToRequestHeader(req *http.Request) {
+	// Best effort to add identity profile to header.
+	// Errors are logged allowing normal operation.
+
+	// Add timezone. Gives a broad geo location.
+	t := time.Now()
+	zone, _ := t.Zone()
+	req.Header.Set(headerProfileTimezoneKey, zone)
+
+	// Add profile.
+	prf := Profile{}
+	if err := loadProfile(&prf); err != nil {
+		fmt.Printf("Couldn't load profile: %v.\n", err)
+		return
+	}
+	if len(prf.Id) > 0 {
+		req.Header.Set(headerProfileIDKey, prf.Id)
+	}
+	if len(prf.Channel) > 0 {
+		req.Header.Set(headerProfileChannelKey, prf.Channel)
+	}
+}
+
 func fileSize(file string) (size int64, err error) {
 	f, err := os.Open(file)
 	if err != nil {
@@ -219,6 +397,7 @@ func checkUpdate(url string, currentVer string) (*UpgradeInfo, error) {
 		return nil, err
 	}
 	req.Header.Set("User-Agent", "Update Check")
+	addIdProfileToRequestHeader(req)
 
 	res, err := client.Do(req)
 	if err != nil {
