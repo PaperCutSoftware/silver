@@ -371,9 +371,11 @@ func addIdProfileToRequestHeader(req *http.Request) {
 		return
 	}
 	if len(prf.Id) > 0 {
+		fmt.Printf("Using Id: %v.\n", prf.Id)
 		req.Header.Set(headerProfileIDKey, prf.Id)
 	}
 	if len(prf.Channel) > 0 {
+		fmt.Printf("Using Channel: %v.\n", prf.Channel)
 		req.Header.Set(headerProfileChannelKey, prf.Channel)
 	}
 }
