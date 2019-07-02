@@ -1,6 +1,6 @@
 {
 	"ImportPath": "github.com/papercutsoftware/silver",
-	"GoVersion": "go1.4",
+	"GoVersion": "go1.12.6",
 	"Packages": [
 		"./..."
 	],

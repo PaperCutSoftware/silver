@@ -18,6 +18,8 @@ import (
 	"crypto/rand"
 	"crypto/sha1"
 	"crypto/sha256"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -25,6 +27,7 @@ import (
 	"hash"
 	"io"
 	"io/ioutil"
+	"log"
 	"math"
 	"math/big"
 	"net/http"
@@ -40,12 +43,18 @@ import (
 )
 
 var (
-	versionFile     = flag.String("f", ".version", "Set verison file")
+	versionFile     = flag.String("f", ".version", "Set version file")
 	showVersion     = flag.Bool("v", false, "Display current installed version and exit")
 	overrideVersion = flag.String("c", "", "Override current installed version")
 	httpProxy       = flag.String("p", "", "Set HTTP proxy in format http://server:port")
 	unsafeHTTP      = flag.Bool("unsafe", false, "Debug Only: Support non-https update checks for testing.")
+	selfSignedCert  = flag.Bool("s", false, "Support self signed certificate fallback mode")
 )
+
+const timeout = time.Second * 60
+
+var fallbackClient = &http.Client{Timeout: timeout, Transport: &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}}
+var secureClient = &http.Client{Timeout: timeout}
 
 const (
 	profileFileName          string = "updater-profile.conf"
@@ -126,6 +135,10 @@ func main() {
 		usage()
 	}
 	checkURL := flag.Arg(0)
+	certURL := flag.Arg(1)
+	if certURL == "" {
+		certURL = checkURL + "/cert"
+	}
 
 	if !*unsafeHTTP && !strings.HasPrefix(strings.ToLower(checkURL), "https") {
 		fmt.Fprintf(os.Stderr, "ERROR: The update URL must be HTTPS for security reasons!\n")
@@ -133,7 +146,7 @@ func main() {
 	}
 
 	setupHTTPProxy()
-	ok, err := upgradeIfRequired(checkURL)
+	ok, err := upgradeIfRequired(checkURL, certURL)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 		os.Exit(1)
@@ -145,23 +158,94 @@ func main() {
 	}
 }
 
-func upgradeIfRequired(checkURL string) (upgraded bool, err error) {
+func trustCert(url string) (string, error) {
+	// if the cert file doesn't exist
+	const certFile = "updater.cer"
+	if _, err := os.Stat(certFile); os.IsNotExist(err) {
+		err = downloadCert(url, certFile)
+		if err != nil {
+			return "", err
+		}
+	}
+	err := updateClientCertPool(certFile)
+	return certFile, err
+}
+
+func downloadCert(url string, certFile string) error {
+	resp, err := fallbackClient.Get(url)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+	out, err := os.OpenFile(certFile, os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0755)
+	if err != nil {
+		return err
+	}
+	defer out.Close()
+	_, err = io.Copy(out, resp.Body)
+	if err != nil {
+		return err
+	}
+	return nil
+}
+
+func updateClientCertPool(certFile string) error {
+	log.Printf("reading cert file.\n")
+	caCert, err := ioutil.ReadFile(certFile)
+	if err != nil {
+		return err
+	}
+	caCertPool := x509.NewCertPool()
+	caCertPool.AppendCertsFromPEM(caCert)
+	secureClient.Transport = &http.Transport{TLSClientConfig: &tls.Config{RootCAs: caCertPool}}
+	return nil
+}
+
+func isX509Error(err error) bool {
+	if err == nil {
+		return false
+	}
+	return strings.Contains(err.Error(), "x509")
+}
+
+func upgradeIfRequired(checkURL string, certURL string) (upgraded bool, err error) {
 	currentVer := readCurrentVersion()
 	if len(*overrideVersion) > 0 {
 		currentVer = *overrideVersion
 	}
 
 	// Check update URL
-	upgradeInfo, err := checkUpdate(checkURL, currentVer)
-	if err != nil {
+	secure := true
+	upgradeInfo, err := checkUpdate(checkURL, currentVer, secureClient)
+	if err != nil && !isX509Error(err) {
 		// If we've got a proxy, have one more go with it off.
 		if proxy := os.Getenv("HTTP_PROXY"); proxy != "" {
 			fmt.Printf("Update check using proxy '%s' failed. Trying again without ...\n", proxy)
 			turnOffHTTPProxy()
+			upgradeInfo, err = checkUpdate(checkURL, currentVer, secureClient)
 		}
-		upgradeInfo, err = checkUpdate(checkURL, currentVer)
+	}
+	if isX509Error(err) && *selfSignedCert {
+		fmt.Printf("Download cert and check again")
+		// download cert and check again
+		certFile, trustErr := trustCert(certURL)
+		if trustErr == nil {
+			// try again
+			upgradeInfo, err = checkUpdate(checkURL, currentVer, secureClient)
+		}
+		if err != nil {
+			fmt.Printf("Error occurred. Falling back without cert. %v\n", err)
+			removeErr := os.Remove(certFile)
+			if removeErr != nil {
+				fmt.Printf("Error: Could not delete cert file")
+			}
+			// try one last time
+			secure = false
+			upgradeInfo, err = checkUpdate(checkURL, currentVer, fallbackClient)
+		}
 	}
 	if err != nil {
+		fmt.Printf("Error occurred while checking update: %v. Please contact your server administrator\n", err)
 		return false, err
 	}
 
@@ -175,7 +259,7 @@ func upgradeIfRequired(checkURL string) (upgraded bool, err error) {
 		upgradeInfo.Version,
 		upgradeInfo.URL)
 
-	zipfile, err := download(upgradeInfo.URL)
+	zipfile, err := download(upgradeInfo.URL, secure)
 	if err != nil {
 		return false, err
 	}
@@ -392,8 +476,7 @@ func fileSize(file string) (size int64, err error) {
 	return fi.Size(), nil
 }
 
-func checkUpdate(url string, currentVer string) (*UpgradeInfo, error) {
-	client := &http.Client{}
+func checkUpdate(url string, currentVer string, client *http.Client) (*UpgradeInfo, error) {
 	req, err := http.NewRequest("GET", url+"?version="+currentVer, nil)
 	if err != nil {
 		return nil, err
@@ -430,13 +513,18 @@ func checkUpdate(url string, currentVer string) (*UpgradeInfo, error) {
 	return &info, nil
 }
 
-func download(url string) (string, error) {
+func download(url string, secure bool) (string, error) {
+	var client http.Client
 	outfile, err := ioutil.TempFile("", "update-")
 	if err != nil {
 		return "", err
 	}
-
-	resp, err := http.Get(url)
+	if secure {
+		client = *secureClient
+	} else {
+		client = *fallbackClient
+	}
+	resp, err := client.Get(url)
 	if err != nil {
 		outfile.Close()
 		os.Remove(outfile.Name())
@@ -547,12 +635,13 @@ func setupHTTPProxy() {
 }
 
 func turnOffHTTPProxy() {
-	if t, ok := http.DefaultTransport.(*http.Transport); ok {
-		t.Proxy = func(req *http.Request) (*url.URL, error) {
-			return nil, nil
-		}
+	noProxyFunc := func(req *http.Request) (*url.URL, error) { return nil, nil }
+	if t, ok := secureClient.Transport.(*http.Transport); ok {
+		t.Proxy = noProxyFunc
 	}
-
+	if t, ok := fallbackClient.Transport.(*http.Transport); ok {
+		t.Proxy = noProxyFunc
+	}
 }
 
 func execOp(args []string) (err error) {
