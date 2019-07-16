@@ -260,7 +260,7 @@ func getProfileFileName() (string, error) {
 }
 
 func validateProfile(prf *Profile) error {
-	isAlphaNumeric := regexp.MustCompile(`^[A-Za-z0-9]+$`).MatchString
+	isAlphaNumeric := regexp.MustCompile(`^[A-Za-z0-9-|]+$`).MatchString
 	// Should validate the id string and channel.
 	// For now lets assume id string is less than 256
 	// characters and alphanumeric.
