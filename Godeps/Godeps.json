@@ -16,7 +16,7 @@
 		},
 		{
 			"ImportPath": "github.com/kardianos/service",
-			"Rev": "5ab7ce2c8f38cc0ca92d711f7c4f3ea70d347702"
+			"Rev": "f53685ef760d69d07e653aba30ffbde7b0a1bcaf"
 		},
 		{
 			"ImportPath": "github.com/robfig/cron",
