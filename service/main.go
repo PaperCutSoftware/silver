@@ -4,6 +4,7 @@
 // Use of this source code is governed by an MIT or GPL Version 2 license.
 // See the project's LICENSE file for more information.
 //
+
 package main
 
 import (
@@ -75,10 +76,14 @@ func main() {
 		if err := writeProxyConf(); err != nil {
 			fmt.Fprintf(os.Stderr, "WARNING: Unable to store HTTP Proxy settings: %v\n", err)
 		}
-		fallthrough
-	default:
-		osServiceControl(ctx)
+	case "run":
+		if ctx.conf.ServiceConfig.AttemptRestartOnPanic {
+			// panic handler will only run in 'run' mode
+			defer handlePanic(ctx)
+		}
 	}
+
+	osServiceControl(ctx)
 }
 
 func osServiceControl(ctx *context) {

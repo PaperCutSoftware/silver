@@ -4,5 +4,5 @@ github.com/kardianos/service v0.0.0-20150901163429-5ab7ce2c8f38 h1:AmZBIwOMiBq6K
 github.com/kardianos/service v0.0.0-20150901163429-5ab7ce2c8f38/go.mod h1:10UU/bEkzh2iEN6aYzbevY7J6p03KO5siTxQWXMEerg=
 github.com/robfig/cron v1.0.1-0.20141203011048-67823cd24dec h1:mhyY8LLpu91YkLbPg2Zu8BnvmnP48A/Q27GlUw8+Jyc=
 github.com/robfig/cron v1.0.1-0.20141203011048-67823cd24dec/go.mod h1:JGuDeoQd7Z6yL4zQhZ3OPEVHB7fL6Ka6skscFHfmt2k=
-golang.org/x/sys v0.0.0-20150902011636-e6e5e023fceb h1:lzYREea+uPezp+6mxy4XRmJ7OJCb/1Jry2O7/ZvEYKU=
-golang.org/x/sys v0.0.0-20150902011636-e6e5e023fceb/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
+golang.org/x/sys v0.0.0-20190215142949-d0b11bdaac8a h1:1BGLXjeY4akVXGgbC9HugT3Jv3hCI0z56oJR5vAMgBU=
+golang.org/x/sys v0.0.0-20190215142949-d0b11bdaac8a/go.mod h1:STP8DvDyc/dI5b8T5hshtkjS+E42TnysNCUPdjciGhY=
