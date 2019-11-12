@@ -78,12 +78,12 @@ func buildAll() {
 	makeDir(buildOutputDir)
 
 	fmt.Printf("Building binaries for %s...\n", runtime.GOOS)
-	_ = runCmd("go", "build", "-o", makeOutputPath(buildOutputDir, "updater"), rootNamespace+"/updater")
-	_ = runCmd("go", "build", "-o", makeOutputPath(buildOutputDir, "service"), rootNamespace+"/service")
-	_ = runCmd("go", "build", "-tags", "nohttp", "-o", makeOutputPath(buildOutputDir, "service-no-http"), rootNamespace+"/service")
+	_ = runCmd("go", "build", "-ldflags", "-s -w", "-o", makeOutputPath(buildOutputDir, "updater"), rootNamespace+"/updater")
+	_ = runCmd("go", "build", "-ldflags", "-s -w","-o", makeOutputPath(buildOutputDir, "service"), rootNamespace+"/service")
+	_ = runCmd("go", "build", "-tags", "nohttp", "-ldflags", "-s -w","-o", makeOutputPath(buildOutputDir, "service-no-http"), rootNamespace+"/service")
 	if runtime.GOOS == "windows" {
-		_ = runCmd( "go", "build", "-tags", "nohttp", "-ldflags", "-H=windowsgui", "-o", makeOutputPath(buildOutputDir, "service-no-window"), rootNamespace+"/service")
-		_ = runCmd( "go", "build", "-ldflags", "-H=windowsgui", "-o", makeOutputPath(buildOutputDir, "updater-no-window"), rootNamespace+"/updater")
+		_ = runCmd( "go", "build", "-tags", "nohttp", "-ldflags", "-s -w  -H=windowsgui", "-o", makeOutputPath(buildOutputDir, "service-no-window"), rootNamespace+"/service")
+		_ = runCmd( "go", "build", "-ldflags", "-s -w -H=windowsgui", "-o", makeOutputPath(buildOutputDir, "updater-no-window"), rootNamespace+"/updater")
 	}
 
 	fmt.Printf("\nCOMPLETE. You'll find the files in:\n    '%s'\n", buildOutputDir)
