@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+
 	"os"
 	"path"
 	"path/filepath"
@@ -41,7 +42,6 @@ type context struct {
 }
 
 func main() {
-
 	if err := os.Chdir(exeFolder()); err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: Unable to set working directory: %v\n", err)
 		os.Exit(1)
