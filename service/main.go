@@ -4,6 +4,7 @@
 // Use of this source code is governed by an MIT or GPL Version 2 license.
 // See the project's LICENSE file for more information.
 //
+
 package main
 
 import (
@@ -77,6 +78,9 @@ func main() {
 		}
 		fallthrough
 	default:
+		// registers a crash handler for silver
+		// this is required to be in main
+		defer handlePanic(ctx)
 		osServiceControl(ctx)
 	}
 }

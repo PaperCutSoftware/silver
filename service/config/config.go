@@ -43,6 +43,7 @@ type ServiceConfig struct {
 	PidFile          string
 	UserLevel        bool
 	UserName         string
+	CrashLogFile     string
 }
 
 type command struct {
