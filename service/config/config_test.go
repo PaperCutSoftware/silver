@@ -23,7 +23,7 @@ func TestLoadConfig_MissingFileShouldRaiseError(t *testing.T) {
 	}
 }
 
-func TestLocadConfig_ValidConfig(t *testing.T) {
+func TestLocalConfig_ValidConfig(t *testing.T) {
 	// Arrange
 	testConfig := `
     {
@@ -46,7 +46,7 @@ func TestLocadConfig_ValidConfig(t *testing.T) {
                 "Path" : "test/path/1",
                 "Args" : ["arg1", "arg2"],
                 "GracefulShutdownTimeoutSecs" : 12,
-                "MaxCrashCount" : 999,
+                "MaxCrashCountPerHour" : 999,
                 "RestartDelaySecs" : 1,
                 "MonitorPing" : {
                     "URL" : "http://localhost:80/login",
@@ -142,6 +142,10 @@ func TestLocadConfig_ValidConfig(t *testing.T) {
 
 	if c.Services[0].Args[0] != "arg1" {
 		t.Error("Problem extracting arg")
+	}
+
+	if c.Services[0].MaxCrashCountPerHour != 999 {
+		t.Error("MaxCrashCountPerHour field not parsed correctly")
 	}
 
 	if c.ScheduledTasks[1].Path != "scheduled/task/2" {
@@ -265,7 +269,7 @@ func TestLoadConfig_IncompleteConfig_ShouldError(t *testing.T) {
                 "Path" : "test/path/1",
                 "Args" : ["arg1", "arg2"],
                 "GracefulShutdownTimeoutSecs" : 12,
-                "MaxCrashCount" : 999,
+                "MaxCrashCountPerHour" : 999,
                 "RestartDelaySecs" : 1,
                 "MonitorPing" : {
                     "URL" : "http://localhost:80/login",
