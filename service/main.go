@@ -76,13 +76,14 @@ func main() {
 		if err := writeProxyConf(); err != nil {
 			fmt.Fprintf(os.Stderr, "WARNING: Unable to store HTTP Proxy settings: %v\n", err)
 		}
-		fallthrough
-	default:
-		// registers a crash handler for silver
-		// this is required to be in main
-		defer handlePanic(ctx)
-		osServiceControl(ctx)
+	case "run":
+		if ctx.conf.ServiceConfig.AttemptRestartOnPanic {
+			// panic handler will only run in 'run' mode
+			defer handlePanic(ctx, action)
+		}
 	}
+
+	osServiceControl(ctx)
 }
 
 func osServiceControl(ctx *context) {

@@ -83,7 +83,6 @@ func buildAll() {
 	_ = runCmd("go", "build", "-tags", "nohttp", "-o", makeOutputPath(buildOutputDir, "service-no-http"), rootNamespace+"/service")
 	if runtime.GOOS == "windows" {
 		_ = runCmd("go", "build", "-tags", "nohttp", "-ldflags", "-H=windowsgui", "-o", makeOutputPath(buildOutputDir, "service-no-window"), rootNamespace+"/service")
-		_ = runCmd("go", "build", "-tags", "nohttp,immortal", "-ldflags", "-H=windowsgui", "-o", makeOutputPath(buildOutputDir, "service-no-window-immortal"), rootNamespace+"/service")
 		_ = runCmd("go", "build", "-ldflags", "-H=windowsgui", "-o", makeOutputPath(buildOutputDir, "updater-no-window"), rootNamespace+"/updater")
 	}
 
