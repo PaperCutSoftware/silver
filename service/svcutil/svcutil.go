@@ -76,18 +76,15 @@ func ExecuteTask(terminate chan struct{}, taskConf TaskConfig) (exitCode int, er
 		Stderr:           &logWriter{prefix: fmt.Sprintf("%s: STDERR|", taskName), logger: taskConf.Logger},
 	}
 
-	go func() {
-		<-terminate
-		logf(taskConf.Logger, taskName, "Stopping task...")
-	}()
-
 	executable := procmngt.NewExecutable(execConf)
 	if execConf.StartupDelay > 0 {
 		logf(taskConf.Logger, taskName, "Starting task (delayed %s)", execConf.StartupDelay.String())
 	} else {
 		logf(taskConf.Logger, taskName, "Starting task...")
 	}
-	return executable.Execute(terminate)
+	exitCode, err = executable.Execute(terminate)
+	logf(taskConf.Logger, taskName, "Task Stopped..., exit code %d, err %v", exitCode, err)
+	return exitCode, err
 }
 
 func exeName(path string) string {

@@ -36,7 +36,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/PaperCutSoftware/silver/lib/pathutils"
+	"github.com/papercutsoftware/silver/lib/pathutils"
 )
 
 var (

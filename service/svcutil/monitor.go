@@ -112,7 +112,7 @@ func pingTCPEcho(host string, timeout time.Duration) (ok bool, err error) {
 	conn.SetDeadline(time.Now().Add(timeout))
 
 	// Challenge the server with a unique ping
-	ping := fmt.Sprintf("ping-%d", time.Now().UTC())
+	ping := fmt.Sprintf("ping-%d", time.Now().UTC().Unix())
 	if _, err := fmt.Fprintf(conn, ping); err != nil {
 		return false, err
 	}
