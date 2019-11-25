@@ -96,7 +96,7 @@ func setupEnv() {
 	fmt.Println("Installing godep...")
 	runCmd("go", "get", "github.com/tools/godep")
 	if _, err := exec.LookPath("godep"); err != nil {
-		fmt.Println("ERROR: godep does note seem to be on the path")
+		fmt.Println("ERROR: godep does not seem to be on the path")
 	}
 }
 
