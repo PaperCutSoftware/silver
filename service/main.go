@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-
 	"os"
 	"path"
 	"path/filepath"
@@ -19,14 +18,13 @@ import (
 	"time"
 
 	"github.com/kardianos/service"
-	"github.com/robfig/cron"
-
 	"github.com/papercutsoftware/silver/lib/logging"
 	"github.com/papercutsoftware/silver/lib/osutils"
 	"github.com/papercutsoftware/silver/lib/pathutils"
 	"github.com/papercutsoftware/silver/service/cmdutil"
 	"github.com/papercutsoftware/silver/service/config"
 	"github.com/papercutsoftware/silver/service/svcutil"
+	"github.com/robfig/cron"
 )
 
 const (
