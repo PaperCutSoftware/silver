@@ -10,7 +10,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"bitbucket.org/kardianos/osext"
+	"github.com/kardianos/osext"
 )
 
 func getConfigFilePath() string {
