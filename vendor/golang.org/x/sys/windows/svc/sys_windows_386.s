@@ -2,8 +2,6 @@
 // Use of this source code is governed by a BSD-style
 // license that can be found in the LICENSE file.
 
-// +build windows
-
 // func servicemain(argc uint32, argv **uint16)
 TEXT ·servicemain(SB),7,$0
 	MOVL	argc+0(FP), AX
@@ -22,7 +20,9 @@ TEXT ·servicemain(SB),7,$0
 	MOVL	AX, (SP)
 	MOVL	$·servicectlhandler(SB), AX
 	MOVL	AX, 4(SP)
-	MOVL	·cRegisterServiceCtrlHandlerW(SB), AX
+	// Set context to 123456 to test issue #25660.
+	MOVL	$123456, 8(SP)
+	MOVL	·cRegisterServiceCtrlHandlerExW(SB), AX
 	MOVL	SP, BP
 	CALL	AX
 	MOVL	BP, SP
@@ -61,7 +61,7 @@ exit:
 // I do not know why, but this seems to be the only way to call
 // ctlHandlerProc on Windows 7.
 
-// func servicectlhandler(ctl uint32) uintptr
+// func servicectlhandler(ctl uint32, evtype uint32, evdata uintptr, context uintptr) uintptr {
 TEXT ·servicectlhandler(SB),7,$0
-	MOVL	·ctlHandlerProc(SB), CX
+	MOVL	·ctlHandlerExProc(SB), CX
 	JMP	CX

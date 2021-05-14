@@ -1,6 +1,6 @@
 // SILVER - Service Wrapper
 //
-// Copyright (c) 2016 PaperCut Software http://www.papercut.com/
+// Copyright (c) 2016-2021 PaperCut Software http://www.papercut.com/
 // Use of this source code is governed by an MIT or GPL Version 2 license.
 // See the project's LICENSE file for more information.
 //
@@ -27,6 +27,13 @@ var (
 
 func init() {
 	random = rand.New(rand.NewSource(time.Now().UTC().UnixNano() + int64(os.Getpid())))
+}
+
+// RestartConfig is a configuration for restarting a service.
+type RestartConfig struct {
+	ServiceName  string        // Service name to be configured. It should be already registered in SCM.
+	RestartDelay time.Duration // Time to wait before rebooting
+	ResetPeriod  time.Duration // Time after which to rest the service failure count to zero if there are no failures
 }
 
 type TaskConfig struct {

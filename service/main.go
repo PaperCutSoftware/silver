@@ -74,9 +74,22 @@ func run() (exitCode int) {
 		fmt.Println("Config is valid")
 		return 0
 	case "install":
-		if err := writeProxyConf(); err != nil {
+		if err = writeProxyConf(); err != nil {
 			fmt.Fprintf(os.Stderr, "WARNING: Unable to store HTTP Proxy settings: %v\n", err)
 		}
+		defer func() {
+			if exitCode != 0 {
+				return
+			}
+			restartConfig := svcutil.RestartConfig{
+				ServiceName:  serviceName(),
+				RestartDelay: 10 * time.Second,
+				ResetPeriod:  0,
+			}
+			if err = svcutil.SetServiceToRestart(restartConfig); err != nil {
+				fmt.Fprintf(os.Stderr, "WARNING: Failed to set auto restart on failure: %v\n", err)
+			}
+		}()
 		fallthrough
 	default:
 		return osServiceControl(ctx)
@@ -90,13 +103,13 @@ func osServiceControl(ctx *context) int {
 	logFile := ctx.conf.ServiceConfig.LogFile
 	maxSize := int64(ctx.conf.ServiceConfig.LogFileMaxSizeMb) * 1024 * 1024
 	if logFile == "" {
-		logFile = serviceName() + ".log"
+		logFile = serviceName + ".log"
 	}
 	ctx.logger = logging.NewFileLoggerWithMaxSize(logFile, ctx.conf.ServiceConfig.UserName, maxSize)
 
 	// Setup service
 	svcConfig := &service.Config{
-		Name:        serviceName(),
+		Name:        serviceName,
 		DisplayName: ctx.conf.ServiceDescription.DisplayName,
 		Description: ctx.conf.ServiceDescription.Description,
 		UserName:    ctx.conf.ServiceConfig.UserName,
