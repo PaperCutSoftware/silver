@@ -368,10 +368,12 @@ func execStartupTasks(ctx *context) {
 
 func startServices(ctx *context) {
 	ctx.logger.Printf("Starting %d services.", len(ctx.conf.Services))
+
+	ctx.runningGroup.Add(len(ctx.conf.Services))
 	for _, service := range ctx.conf.Services {
 		go func(service config.Service) {
-			ctx.runningGroup.Add(1)
 			defer ctx.runningGroup.Done()
+
 			serviceName := path.Base(service.Path)
 			svcConfig := svcutil.ServiceConfig{}
 			svcConfig.Path = pathutils.FindLastFile(service.Path)
