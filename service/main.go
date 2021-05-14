@@ -168,7 +168,7 @@ func setupEnvironment(conf *config.Config) {
 	// Load Silver spacific
 	os.Setenv("SILVER_SERVICE_NAME", conf.ServiceDescription.Name)
 	os.Setenv("SILVER_SERVICE_ROOT", exeFolder())
-	os.Setenv("SILVER_SERVICE_PID", string(os.Getpid()))
+	os.Setenv("SILVER_SERVICE_PID", fmt.Sprint(os.Getpid()))
 
 	// If we have HTTP proxy conf, load this
 	if b, err := ioutil.ReadFile(proxyConfFile()); err == nil {
