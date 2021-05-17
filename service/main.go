@@ -1,6 +1,6 @@
 // SILVER - Service Wrapper
 //
-// Copyright (c) 2014-2017 PaperCut Software http://www.papercut.com/
+// Copyright (c) 2014-2021 PaperCut Software http://www.papercut.com/
 // Use of this source code is governed by an MIT or GPL Version 2 license.
 // See the project's LICENSE file for more information.
 //
@@ -40,46 +40,52 @@ type context struct {
 }
 
 func main() {
-	if err := os.Chdir(exeFolder()); err != nil {
+	os.Exit(run())
+}
+
+func run() (exitCode int) {
+	err := os.Chdir(exeFolder())
+	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: Unable to set working directory: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 
 	ctx := &context{}
 
 	// Parse config (we don't action any errors quite yet)
-	var err error
 	ctx.conf, err = loadConf()
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: Invalid config - %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 
 	action, actionArgs, err := parse(os.Args)
 	if err != nil {
 		printUsage(ctx.conf.ServiceDescription.DisplayName, ctx.conf.ServiceDescription.Description)
-		os.Exit(1)
+		return 1
 	}
 
 	setupEnvironment(ctx.conf)
 
 	switch action {
 	case "command":
-		execCommand(ctx, actionArgs)
+		return execCommand(ctx, actionArgs)
 	case "validate":
 		fmt.Println("Config is valid")
-		os.Exit(0)
+		return 0
 	case "install":
 		if err := writeProxyConf(); err != nil {
 			fmt.Fprintf(os.Stderr, "WARNING: Unable to store HTTP Proxy settings: %v\n", err)
 		}
 		fallthrough
 	default:
-		osServiceControl(ctx)
+		return osServiceControl(ctx)
 	}
 }
 
-func osServiceControl(ctx *context) {
+func osServiceControl(ctx *context) int {
+	serviceName := serviceName()
+
 	// Setup log file out
 	logFile := ctx.conf.ServiceConfig.LogFile
 	maxSize := int64(ctx.conf.ServiceConfig.LogFileMaxSizeMb) * 1024 * 1024
@@ -101,28 +107,29 @@ func osServiceControl(ctx *context) {
 	svc, err := service.New(osService, svcConfig)
 	if err != nil {
 		fmt.Printf("ERROR: Invalid service config: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 
 	if len(os.Args) > 1 && os.Args[1] != "run" {
 		err = service.Control(svc, os.Args[1])
 		if err != nil {
 			fmt.Printf("ERROR: Invalid service command: %v\n", err)
-			os.Exit(1)
+			return 1
 		}
-		os.Exit(0)
+		return 0
 	}
 
 	err = svc.Run()
 	if err != nil {
 		fmt.Printf("ERROR: %v\n", err)
-		os.Exit(1)
+		return 1
 	}
 
 	pidFile := ctx.conf.ServiceConfig.PidFile
 	if pidFile != "" {
 		ioutil.WriteFile(pidFile, []byte(fmt.Sprintf("%d\n", os.Getpid())), 0644)
 	}
+	return 0
 }
 
 func printUsage(svcDisplayName, svcDesc string) {
@@ -196,7 +203,7 @@ func proxyConfFile() string {
 	return filepath.Join(exeFolder(), "http-proxy.conf")
 }
 
-func execCommand(ctx *context, args []string) {
+func execCommand(ctx *context, args []string) int {
 	/*
 	 *  IMPORTANT:
 	 *  Don't write to any log files, etc.  Commands are not system service code.
@@ -207,7 +214,7 @@ func execCommand(ctx *context, args []string) {
 	 */
 	if len(ctx.conf.Commands) == 0 {
 		fmt.Fprintf(os.Stderr, "There are no commands configured!\n")
-		os.Exit(1)
+		return 1
 	}
 
 	var cmd *config.Command
@@ -227,7 +234,7 @@ func execCommand(ctx *context, args []string) {
 		for _, command := range ctx.conf.Commands {
 			fmt.Fprintf(os.Stderr, "    %s\n", command.Name)
 		}
-		os.Exit(1)
+		return 1
 	}
 
 	cmdConf := cmdutil.CommandConfig{}
@@ -241,7 +248,7 @@ func execCommand(ctx *context, args []string) {
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 	}
-	os.Exit(exitCode)
+	return exitCode
 }
 
 type osService struct {
