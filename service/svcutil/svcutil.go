@@ -32,7 +32,7 @@ func init() {
 // RestartConfig is a configuration for restarting a service.
 type RestartConfig struct {
 	ServiceName         string        // Service name to be configured. It should be already registered in SCM
-	RestartDelay        time.Duration // Time to wait before rebooting
+	RestartDelay        time.Duration // Time to wait before restarting service
 	ResetFailCountAfter time.Duration // Time after which to reset the service failure count to zero if there are no failures
 }
 

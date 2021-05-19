@@ -17,11 +17,11 @@ const (
 	InfiniteFailCountResetPeriod = syscall.INFINITE * time.Second
 )
 
-// SetServiceToRestart sets the service named name to automatically restart after waiting for a duration specified by
-// delay when the service fails, and the time after which to reset the service failure count to zero if there are no
-// failures. The service that specifies has to already be registered in the SCM. If delay is negative or greater than
-// MaxDelay, or resetPeriod is negative, an error is returned. If resetPeriod is grater than or equal
-// InfiniteResetPeriod, the service failure count is never reset.
+// SetServiceToRestart sets a service to automatically restart on failure after waiting for a duration specified, and
+// the time duration after which to reset the service failure count to zero if there are no failures. The specified
+// service has to be already registered in the SCM. If the restart delay is negative or greater than MaxDelay, or the
+// time duraion to reset fail count is negative, an error is returned. If the time duration to rest fail count is
+// greater than or equal InfiniteFailCountResetPeriod, the service failure count is never reset.
 func SetServiceToRestart(conf RestartConfig) error {
 	switch {
 	case conf.RestartDelay < 0:
