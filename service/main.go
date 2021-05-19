@@ -82,9 +82,9 @@ func run() (exitCode int) {
 				return
 			}
 			restartConfig := svcutil.RestartConfig{
-				ServiceName:  serviceName(),
-				RestartDelay: 10 * time.Second,
-				ResetPeriod:  0,
+				ServiceName:         serviceName(),
+				RestartDelay:        10 * time.Second,
+				ResetFailCountAfter: 0,
 			}
 			if err = svcutil.SetServiceToRestart(restartConfig); err != nil {
 				fmt.Fprintf(os.Stderr, "WARNING: Failed to set auto restart on failure: %v\n", err)

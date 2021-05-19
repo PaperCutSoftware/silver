@@ -13,8 +13,8 @@ import (
 )
 
 const (
-	MaxDelay            = syscall.INFINITE * time.Millisecond
-	InfiniteResetPeriod = syscall.INFINITE * time.Second
+	MaxDelay                     = syscall.INFINITE * time.Millisecond
+	InfiniteFailCountResetPeriod = syscall.INFINITE * time.Second
 )
 
 // SetServiceToRestart sets the service named name to automatically restart after waiting for a duration specified by
@@ -28,10 +28,10 @@ func SetServiceToRestart(conf RestartConfig) error {
 		return errors.New("Invalid delay time")
 	case conf.RestartDelay > MaxDelay:
 		return errors.New("Exceeding maximum delay time")
-	case conf.ResetPeriod < 0:
+	case conf.ResetFailCountAfter < 0:
 		return errors.New("Invalid reset period")
-	case conf.ResetPeriod > InfiniteResetPeriod:
-		conf.ResetPeriod = InfiniteResetPeriod
+	case conf.ResetFailCountAfter > InfiniteFailCountResetPeriod:
+		conf.ResetFailCountAfter = InfiniteFailCountResetPeriod
 	}
 
 	manager, err := mgr.Connect()
@@ -55,7 +55,7 @@ func SetServiceToRestart(conf RestartConfig) error {
 		Delay: conf.RestartDelay,
 	}}
 
-	if err = service.SetRecoveryActions(actions, uint32(conf.ResetPeriod/time.Second)); err != nil {
+	if err = service.SetRecoveryActions(actions, uint32(conf.ResetFailCountAfter/time.Second)); err != nil {
 		return fmt.Errorf("Failed to set recovery action: %v", err)
 	}
 	return nil
