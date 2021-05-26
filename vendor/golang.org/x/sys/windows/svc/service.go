@@ -14,6 +14,7 @@ import (
 	"syscall"
 	"unsafe"
 
+	"golang.org/x/sys/internal/unsafeheader"
 	"golang.org/x/sys/windows"
 )
 
@@ -35,11 +36,21 @@ const (
 type Cmd uint32
 
 const (
-	Stop        = Cmd(windows.SERVICE_CONTROL_STOP)
-	Pause       = Cmd(windows.SERVICE_CONTROL_PAUSE)
-	Continue    = Cmd(windows.SERVICE_CONTROL_CONTINUE)
-	Interrogate = Cmd(windows.SERVICE_CONTROL_INTERROGATE)
-	Shutdown    = Cmd(windows.SERVICE_CONTROL_SHUTDOWN)
+	Stop                  = Cmd(windows.SERVICE_CONTROL_STOP)
+	Pause                 = Cmd(windows.SERVICE_CONTROL_PAUSE)
+	Continue              = Cmd(windows.SERVICE_CONTROL_CONTINUE)
+	Interrogate           = Cmd(windows.SERVICE_CONTROL_INTERROGATE)
+	Shutdown              = Cmd(windows.SERVICE_CONTROL_SHUTDOWN)
+	ParamChange           = Cmd(windows.SERVICE_CONTROL_PARAMCHANGE)
+	NetBindAdd            = Cmd(windows.SERVICE_CONTROL_NETBINDADD)
+	NetBindRemove         = Cmd(windows.SERVICE_CONTROL_NETBINDREMOVE)
+	NetBindEnable         = Cmd(windows.SERVICE_CONTROL_NETBINDENABLE)
+	NetBindDisable        = Cmd(windows.SERVICE_CONTROL_NETBINDDISABLE)
+	DeviceEvent           = Cmd(windows.SERVICE_CONTROL_DEVICEEVENT)
+	HardwareProfileChange = Cmd(windows.SERVICE_CONTROL_HARDWAREPROFILECHANGE)
+	PowerEvent            = Cmd(windows.SERVICE_CONTROL_POWEREVENT)
+	SessionChange         = Cmd(windows.SERVICE_CONTROL_SESSIONCHANGE)
+	PreShutdown           = Cmd(windows.SERVICE_CONTROL_PRESHUTDOWN)
 )
 
 // Accepted is used to describe commands accepted by the service.
@@ -47,23 +58,35 @@ const (
 type Accepted uint32
 
 const (
-	AcceptStop             = Accepted(windows.SERVICE_ACCEPT_STOP)
-	AcceptShutdown         = Accepted(windows.SERVICE_ACCEPT_SHUTDOWN)
-	AcceptPauseAndContinue = Accepted(windows.SERVICE_ACCEPT_PAUSE_CONTINUE)
+	AcceptStop                  = Accepted(windows.SERVICE_ACCEPT_STOP)
+	AcceptShutdown              = Accepted(windows.SERVICE_ACCEPT_SHUTDOWN)
+	AcceptPauseAndContinue      = Accepted(windows.SERVICE_ACCEPT_PAUSE_CONTINUE)
+	AcceptParamChange           = Accepted(windows.SERVICE_ACCEPT_PARAMCHANGE)
+	AcceptNetBindChange         = Accepted(windows.SERVICE_ACCEPT_NETBINDCHANGE)
+	AcceptHardwareProfileChange = Accepted(windows.SERVICE_ACCEPT_HARDWAREPROFILECHANGE)
+	AcceptPowerEvent            = Accepted(windows.SERVICE_ACCEPT_POWEREVENT)
+	AcceptSessionChange         = Accepted(windows.SERVICE_ACCEPT_SESSIONCHANGE)
+	AcceptPreShutdown           = Accepted(windows.SERVICE_ACCEPT_PRESHUTDOWN)
 )
 
 // Status combines State and Accepted commands to fully describe running service.
 type Status struct {
-	State      State
-	Accepts    Accepted
-	CheckPoint uint32 // used to report progress during a lengthy operation
-	WaitHint   uint32 // estimated time required for a pending operation, in milliseconds
+	State                   State
+	Accepts                 Accepted
+	CheckPoint              uint32 // used to report progress during a lengthy operation
+	WaitHint                uint32 // estimated time required for a pending operation, in milliseconds
+	ProcessId               uint32 // if the service is running, the process identifier of it, and otherwise zero
+	Win32ExitCode           uint32 // set if the service has exited with a win32 exit code
+	ServiceSpecificExitCode uint32 // set if the service has exited with a service-specific exit code
 }
 
 // ChangeRequest is sent to the service Handler to request service status change.
 type ChangeRequest struct {
 	Cmd           Cmd
+	EventType     uint32
+	EventData     uintptr
 	CurrentStatus Status
+	Context       uintptr
 }
 
 // Handler is the interface that must be implemented to build Windows service.
@@ -85,29 +108,32 @@ type Handler interface {
 
 var (
 	// These are used by asm code.
-	goWaitsH                     uintptr
-	cWaitsH                      uintptr
-	ssHandle                     uintptr
-	sName                        *uint16
-	sArgc                        uintptr
-	sArgv                        **uint16
-	ctlHandlerProc               uintptr
-	cSetEvent                    uintptr
-	cWaitForSingleObject         uintptr
-	cRegisterServiceCtrlHandlerW uintptr
+	goWaitsH                       uintptr
+	cWaitsH                        uintptr
+	ssHandle                       uintptr
+	sName                          *uint16
+	sArgc                          uintptr
+	sArgv                          **uint16
+	ctlHandlerExProc               uintptr
+	cSetEvent                      uintptr
+	cWaitForSingleObject           uintptr
+	cRegisterServiceCtrlHandlerExW uintptr
 )
 
 func init() {
-	k := syscall.MustLoadDLL("kernel32.dll")
-	cSetEvent = k.MustFindProc("SetEvent").Addr()
-	cWaitForSingleObject = k.MustFindProc("WaitForSingleObject").Addr()
-	a := syscall.MustLoadDLL("advapi32.dll")
-	cRegisterServiceCtrlHandlerW = a.MustFindProc("RegisterServiceCtrlHandlerW").Addr()
+	k := windows.NewLazySystemDLL("kernel32.dll")
+	cSetEvent = k.NewProc("SetEvent").Addr()
+	cWaitForSingleObject = k.NewProc("WaitForSingleObject").Addr()
+	a := windows.NewLazySystemDLL("advapi32.dll")
+	cRegisterServiceCtrlHandlerExW = a.NewProc("RegisterServiceCtrlHandlerExW").Addr()
 }
 
 type ctlEvent struct {
-	cmd   Cmd
-	errno uint32
+	cmd       Cmd
+	eventType uint32
+	eventData uintptr
+	context   uintptr
+	errno     uint32
 }
 
 // service provides access to windows service api.
@@ -165,6 +191,24 @@ func (s *service) updateStatus(status *Status, ec *exitCode) error {
 	if status.Accepts&AcceptPauseAndContinue != 0 {
 		t.ControlsAccepted |= windows.SERVICE_ACCEPT_PAUSE_CONTINUE
 	}
+	if status.Accepts&AcceptParamChange != 0 {
+		t.ControlsAccepted |= windows.SERVICE_ACCEPT_PARAMCHANGE
+	}
+	if status.Accepts&AcceptNetBindChange != 0 {
+		t.ControlsAccepted |= windows.SERVICE_ACCEPT_NETBINDCHANGE
+	}
+	if status.Accepts&AcceptHardwareProfileChange != 0 {
+		t.ControlsAccepted |= windows.SERVICE_ACCEPT_HARDWAREPROFILECHANGE
+	}
+	if status.Accepts&AcceptPowerEvent != 0 {
+		t.ControlsAccepted |= windows.SERVICE_ACCEPT_POWEREVENT
+	}
+	if status.Accepts&AcceptSessionChange != 0 {
+		t.ControlsAccepted |= windows.SERVICE_ACCEPT_SESSIONCHANGE
+	}
+	if status.Accepts&AcceptPreShutdown != 0 {
+		t.ControlsAccepted |= windows.SERVICE_ACCEPT_PRESHUTDOWN
+	}
 	if ec.errno == 0 {
 		t.Win32ExitCode = windows.NO_ERROR
 		t.ServiceSpecificExitCode = windows.NO_ERROR
@@ -188,10 +232,16 @@ const (
 func (s *service) run() {
 	s.goWaits.Wait()
 	s.h = windows.Handle(ssHandle)
-	argv := (*[100]*int16)(unsafe.Pointer(sArgv))[:sArgc]
+
+	var argv []*uint16
+	hdr := (*unsafeheader.Slice)(unsafe.Pointer(&argv))
+	hdr.Data = unsafe.Pointer(sArgv)
+	hdr.Len = int(sArgc)
+	hdr.Cap = int(sArgc)
+
 	args := make([]string, len(argv))
 	for i, a := range argv {
-		args[i] = syscall.UTF16ToString((*[1 << 20]uint16)(unsafe.Pointer(a))[:])
+		args[i] = windows.UTF16PtrToString(a)
 	}
 
 	cmdsToHandler := make(chan ChangeRequest)
@@ -203,11 +253,12 @@ func (s *service) run() {
 		exitFromHandler <- exitCode{ss, errno}
 	}()
 
-	status := Status{State: Stopped}
 	ec := exitCode{isSvcSpecific: true, errno: 0}
+	outcr := ChangeRequest{
+		CurrentStatus: Status{State: Stopped},
+	}
 	var outch chan ChangeRequest
 	inch := s.c
-	var cmd Cmd
 loop:
 	for {
 		select {
@@ -218,8 +269,11 @@ loop:
 			}
 			inch = nil
 			outch = cmdsToHandler
-			cmd = r.cmd
-		case outch <- ChangeRequest{cmd, status}:
+			outcr.Cmd = r.cmd
+			outcr.EventType = r.eventType
+			outcr.EventData = r.eventData
+			outcr.Context = r.context
+		case outch <- outcr:
 			inch = s.c
 			outch = nil
 		case c := <-changesFromHandler:
@@ -232,7 +286,7 @@ loop:
 				}
 				break loop
 			}
-			status = c
+			outcr.CurrentStatus = c
 		case ec = <-exitFromHandler:
 			break loop
 		}
@@ -276,8 +330,8 @@ func Run(name string, handler Handler) error {
 		return err
 	}
 
-	ctlHandler := func(ctl uint32) uintptr {
-		e := ctlEvent{cmd: Cmd(ctl)}
+	ctlHandler := func(ctl, evtype, evdata, context uintptr) uintptr {
+		e := ctlEvent{cmd: Cmd(ctl), eventType: uint32(evtype), eventData: evdata, context: context}
 		// We assume that this callback function is running on
 		// the same thread as Run. Nowhere in MS documentation
 		// I could find statement to guarantee that. So putting
@@ -288,20 +342,21 @@ func Run(name string, handler Handler) error {
 			e.errno = sysErrNewThreadInCallback
 		}
 		s.c <- e
-		return 0
+		// Always return NO_ERROR (0) for now.
+		return windows.NO_ERROR
 	}
 
 	var svcmain uintptr
 	getServiceMain(&svcmain)
 	t := []windows.SERVICE_TABLE_ENTRY{
-		{syscall.StringToUTF16Ptr(s.name), svcmain},
-		{nil, 0},
+		{ServiceName: syscall.StringToUTF16Ptr(s.name), ServiceProc: svcmain},
+		{ServiceName: nil, ServiceProc: 0},
 	}
 
 	goWaitsH = uintptr(s.goWaits.h)
 	cWaitsH = uintptr(s.cWaits.h)
 	sName = t[0].ServiceName
-	ctlHandlerProc, err = newCallback(ctlHandler)
+	ctlHandlerExProc, err = newCallback(ctlHandler)
 	if err != nil {
 		return err
 	}
@@ -313,4 +368,11 @@ func Run(name string, handler Handler) error {
 		return err
 	}
 	return nil
+}
+
+// StatusHandle returns service status handle. It is safe to call this function
+// from inside the Handler.Execute because then it is guaranteed to be set.
+// This code will have to change once multiple services are possible per process.
+func StatusHandle() windows.Handle {
+	return windows.Handle(ssHandle)
 }

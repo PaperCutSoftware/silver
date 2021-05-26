@@ -1,6 +1,6 @@
 // SILVER - Service Wrapper
 //
-// Copyright (c) 2014-2016 PaperCut Software http://www.papercut.com/
+// Copyright (c) 2014-2021 PaperCut Software http://www.papercut.com/
 // Use of this source code is governed by an MIT or GPL Version 2 license.
 // See the project's LICENSE file for more information.
 //
@@ -97,8 +97,8 @@ type ReplacementVars struct {
 
 // LoadConfig parses config.
 func LoadConfig(path string, vars ReplacementVars) (conf *Config, err error) {
-	if _, err := os.Stat(path); os.IsNotExist(err) {
-		return nil, fmt.Errorf("The conf file does not exist. Please configuration here: %s", path)
+	if _, err = os.Stat(path); os.IsNotExist(err) {
+		return nil, fmt.Errorf("The configuration file does not exist. Please place the file here: %s", path)
 	}
 	conf, err = load(path, vars)
 	if err != nil {
