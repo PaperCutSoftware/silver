@@ -18,6 +18,9 @@ import (
 	"strings"
 )
 
+const StopFileName = ".stop"
+const ReloadFileName = ".reload"
+
 type Config struct {
 	ServiceDescription ServiceDescription
 	ServiceConfig      ServiceConfig
@@ -104,14 +107,14 @@ func LoadConfig(path string, vars ReplacementVars) (conf *Config, err error) {
 	if err != nil {
 		return nil, err
 	}
-	err = validate(conf)
+	err = conf.validate()
 	if err != nil {
 		return nil, err
 	}
 	return conf, nil
 }
 
-// Merge in an include file.  Include files can contain services, tasks and commands
+// MergeInclude merges in an include file.  Include files can contain services, tasks and commands
 func MergeInclude(conf Config, path string, vars ReplacementVars) (*Config, error) {
 	include, err := load(path, vars)
 	if err != nil {
@@ -137,7 +140,7 @@ func load(path string, vars ReplacementVars) (conf *Config, err error) {
 	// Special case for an empty file (empty file will raise error with JSON parser)
 	if string(s) == "" {
 		conf = &Config{}
-		applyDefaults(conf)
+		conf.applyDefaults()
 		return conf, nil
 	}
 
@@ -157,7 +160,7 @@ func load(path string, vars ReplacementVars) (conf *Config, err error) {
 		return nil, err
 	}
 
-	applyDefaults(conf)
+	conf.applyDefaults()
 
 	return conf, nil
 }
@@ -169,12 +172,12 @@ func validate(conf *Config) error {
 	return nil
 }
 
-func applyDefaults(conf *Config) {
+func (conf *Config) applyDefaults() {
 	if conf.ServiceConfig.StopFile == "" {
-		conf.ServiceConfig.StopFile = ".stop"
+		conf.ServiceConfig.StopFile = StopFileName
 	}
 	if conf.ServiceConfig.ReloadFile == "" {
-		conf.ServiceConfig.ReloadFile = ".reload"
+		conf.ServiceConfig.ReloadFile = ReloadFileName
 	}
 
 	if conf.ServiceConfig.LogFileMaxSizeMb == 0 {
@@ -196,7 +199,7 @@ func applyDefaults(conf *Config) {
 func replaceVars(in string, replacements map[string]string) (out string) {
 	out = in
 	for key, value := range replacements {
-		out = strings.Replace(out, key, value, -1)
+		out = strings.ReplaceAll(out, key, value)
 	}
 	return out
 }
