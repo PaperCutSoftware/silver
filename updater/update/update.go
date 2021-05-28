@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 )
 
@@ -25,9 +26,9 @@ type Operation struct {
 	Args   []string
 }
 
-func Check(url string, currentVer string) (*UpgradeInfo, error) {
+func Check(updateURL string, currentVer string) (*UpgradeInfo, error) {
 	client := &http.Client{}
-	req, err := http.NewRequest("GET", url+"?version="+currentVer, nil)
+	req, err := http.NewRequest("GET", updateURL+"?version="+url.QueryEscape(currentVer), nil)
 	if err != nil {
 		return nil, err
 	}
@@ -52,7 +53,7 @@ func Check(url string, currentVer string) (*UpgradeInfo, error) {
 	var info UpgradeInfo
 	err = dec.Decode(&info)
 	if err != nil {
-		return nil, fmt.Errorf("Unable to parse JSON at %s : %v", url, err)
+		return nil, fmt.Errorf("Unable to parse JSON at %s : %v", updateURL, err)
 	}
 
 	if info.Version != "" && info.Version == currentVer {
