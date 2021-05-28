@@ -217,7 +217,7 @@ func (u *UpdaterConf) containsUpdaterTask(tasks []config.Task) bool {
 func (u *UpdaterConf) getTasksFromServiceConfig() ([]config.Task, error) {
 	conf, err := config.LoadConfigNoReplacements(u.getServiceConfigPath())
 	if err != nil {
-		return []config.Task{}, err
+		return nil, err
 	}
 	return u.extractTasks(conf), nil
 }
