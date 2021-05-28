@@ -14,8 +14,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"os"
 	"strings"
+
+	"github.com/papercutsoftware/silver/lib/osutils"
 )
 
 const StopFileName = ".stop"
@@ -100,8 +101,8 @@ type ReplacementVars struct {
 
 // LoadConfig parses config.
 func LoadConfig(path string, vars ReplacementVars) (conf *Config, err error) {
-	if _, err = os.Stat(path); os.IsNotExist(err) {
-		return nil, fmt.Errorf("The configuration file does not exist. Please place the file here: %s", path)
+	if !osutils.FileExists(path) {
+		return nil, fmt.Errorf("The conf file does not exist. Please configuration here: %s", path)
 	}
 	conf, err = load(path, vars)
 	if err != nil {
@@ -129,6 +130,15 @@ func MergeInclude(conf Config, path string, vars ReplacementVars) (*Config, erro
 		conf.EnvironmentVars[k] = v
 	}
 	return &conf, nil
+}
+
+// LoadConfigNoReplacements parse config similar to LoadConfig but retains any variables found without replacing them.
+func LoadConfigNoReplacements(filePath string) (*Config, error) {
+	conf, err := LoadConfig(filePath, ReplacementVars{
+		ServiceName: "${ServiceName}",
+		ServiceRoot: "${ServiceRoot}",
+	})
+	return conf, err
 }
 
 func load(path string, vars ReplacementVars) (conf *Config, err error) {
@@ -165,7 +175,16 @@ func load(path string, vars ReplacementVars) (conf *Config, err error) {
 	return conf, nil
 }
 
-func validate(conf *Config) error {
+func (conf *Config) FindCommand(cmdName string) *Command {
+	for _, c := range conf.Commands {
+		if c.Name == cmdName {
+			return &c
+		}
+	}
+	return nil
+}
+
+func (conf *Config) validate() error {
 	if conf.ServiceDescription.DisplayName == "" {
 		return fmt.Errorf("ServiceDescription.DisplayName is required configuration")
 	}

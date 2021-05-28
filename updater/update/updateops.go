@@ -7,7 +7,6 @@ package update
 import (
 	"errors"
 	"fmt"
-	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -125,22 +124,5 @@ func CopyOp(args []string) error {
 	}
 	src := pathutils.FindLastFile(args[0])
 	fmt.Printf("Copying '%s' to '%s'...\n", src, args[1])
-	return copyFile(src, args[1])
-}
-
-func copyFile(src, dest string) error {
-	s, err := os.Open(src)
-	if err != nil {
-		return err
-	}
-	defer s.Close()
-	d, err := os.Create(dest)
-	if err != nil {
-		return err
-	}
-	if _, err := io.Copy(d, s); err != nil {
-		_ = d.Close()
-		return err
-	}
-	return d.Close()
+	return osutils.CopyFile(src, args[1])
 }
