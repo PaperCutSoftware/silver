@@ -99,7 +99,7 @@ func RunUpgradeOps(upgradeInfo *UpgradeInfo) error {
 		case "remove", "rm", "del", "delete":
 			fn = RemoveOp
 		default:
-			msg := fmt.Sprintf("Invalid operation action: '%s'", action)
+			msg := fmt.Sprintf("Invalid operation action: %q", action)
 			return errors.New(msg)
 		}
 		fmt.Printf("Performing operation '%s (%s)' ...\n",
