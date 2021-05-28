@@ -233,12 +233,7 @@ func execCommand(ctx *context, args []string) int {
 	var cmd *config.Command
 	if len(args) > 0 {
 		cmdName := args[0]
-		for _, c := range ctx.conf.Commands {
-			if c.Name == cmdName {
-				cmd = &c
-				break
-			}
-		}
+		cmd = ctx.conf.FindCommand(cmdName)
 	}
 
 	if cmd == nil {
