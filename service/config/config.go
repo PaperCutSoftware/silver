@@ -102,7 +102,7 @@ type ReplacementVars struct {
 // LoadConfig parses config.
 func LoadConfig(path string, vars ReplacementVars) (conf *Config, err error) {
 	if !osutils.FileExists(path) {
-		return nil, fmt.Errorf("The conf file does not exist. Please configuration here: %s", path)
+		return nil, fmt.Errorf("The conf file does not exist. Please put the configuration file here: %s", path)
 	}
 	conf, err = load(path, vars)
 	if err != nil {
