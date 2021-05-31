@@ -42,6 +42,9 @@ func WriteFileString(filename string, data string, perm os.FileMode) error {
 		return err
 	}
 	_, err = f.WriteString(data)
+	if err != nil {
+		return err
+	}
 	if err := f.Close(); err != nil {
 		return err
 	}
