@@ -21,6 +21,7 @@ import (
 const (
 	startupTasksKey   = "StartupTasks"
 	scheduledTasksKey = "ScheduledTasks"
+	pathKey           = "Path"
 )
 
 type UpdaterConf struct {
@@ -173,12 +174,10 @@ func (u *UpdaterConf) DisableAutoUpdate() error {
 		return err
 	}
 
-	_, ok := conf[startupTasksKey]
-	if ok {
+	if u.removeUpdaterTasks(conf, startupTasksKey) {
 		delete(conf, startupTasksKey)
 	}
-	_, ok = conf[scheduledTasksKey]
-	if ok {
+	if u.removeUpdaterTasks(conf, scheduledTasksKey) {
 		delete(conf, scheduledTasksKey)
 	}
 
@@ -194,6 +193,30 @@ func (u *UpdaterConf) DisableAutoUpdate() error {
 	}
 	fmt.Printf("auto updates disabled\n")
 	return nil
+}
+
+func (u *UpdaterConf) removeUpdaterTasks(conf map[string]interface{}, key string) bool {
+	tasks, ok := conf[key].([]interface{})
+	if !ok {
+		return false
+	}
+	for i := 0; i < len(tasks); i++ {
+		task, ok := tasks[i].(map[string]interface{})
+		if !ok {
+			continue
+		}
+		path, ok := task[pathKey].(string)
+		if !ok {
+			continue
+		}
+		if strings.Contains(path, u.updaterFilename) {
+			tasks = append(tasks[:i], tasks[i+1:]...)
+			continue
+		}
+	}
+	conf[key] = tasks
+
+	return len(tasks) == 0
 }
 
 // IsAutoUpdateEnabled checks if the auto update is currently enabled
