@@ -135,14 +135,7 @@ func createConf(data string) (*os.File, error) {
 }
 
 func TestCreateArgs(t *testing.T) {
-	file, err := createConf(`{
-    "ServiceDescription": {
-        "DisplayName": "The Simple Service",
-        "Description": "Only does one thing, but does it well!"
-    },
-    "Services": [{
-            "Path": "simple-server.exe"
-        }]}`)
+	file, err := createConf(`{"ServiceDescription": {"DisplayName": "The Simple Service"`)
 	if err != nil {
 		t.Errorf("Failed to create conf file: %v", err)
 	}
@@ -156,7 +149,6 @@ func TestCreateArgs(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    *updaterconf.UpdaterConf
 		wantErr bool
 	}{
 		{
@@ -173,16 +165,13 @@ func TestCreateArgs(t *testing.T) {
 			args: args{
 				silverDir:            "",
 				silverConfigFilename: "not-found",
-				updaterFilename:      "",
 			},
 			wantErr: true,
 		},
 		{
 			name: "Test updater create invalid empty conf",
 			args: args{
-				silverDir:            ".",
-				silverConfigFilename: "",
-				updaterFilename:      "",
+				silverDir: ".",
 			},
 			wantErr: true,
 		},
@@ -191,7 +180,6 @@ func TestCreateArgs(t *testing.T) {
 			args: args{
 				silverDir:            filepath.Dir(file.Name()),
 				silverConfigFilename: filepath.Base(file.Name()),
-				updaterFilename:      "",
 			},
 			wantErr: false,
 		},
@@ -201,7 +189,6 @@ func TestCreateArgs(t *testing.T) {
 			got, err := updaterconf.Create(tt.args.silverDir, tt.args.silverConfigFilename, tt.args.updaterFilename)
 			if (err != nil) != tt.wantErr {
 				t.Errorf("Create() error = %v, wantErr %v", err, tt.wantErr)
-				return
 			}
 			if err == nil && got == nil {
 				t.Errorf("Create expected to return non nil")
