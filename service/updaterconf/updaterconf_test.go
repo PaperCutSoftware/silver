@@ -133,3 +133,79 @@ func createConf(data string) (*os.File, error) {
 	}
 	return file, err
 }
+
+func TestCreateArgs(t *testing.T) {
+	file, err := createConf(`{
+    "ServiceDescription": {
+        "DisplayName": "The Simple Service",
+        "Description": "Only does one thing, but does it well!"
+    },
+    "Services": [{
+            "Path": "simple-server.exe"
+        }]}`)
+	if err != nil {
+		t.Errorf("Failed to create conf file: %v", err)
+	}
+	defer func() { _ = os.Remove(file.Name()) }()
+
+	type args struct {
+		silverDir            string
+		silverConfigFilename string
+		updaterFilename      string
+	}
+	tests := []struct {
+		name    string
+		args    args
+		want    *updaterconf.UpdaterConf
+		wantErr bool
+	}{
+		{
+			name: "Test updater create invalid args",
+			args: args{
+				silverDir:            "xyz",
+				silverConfigFilename: "not-found",
+				updaterFilename:      "foobar",
+			},
+			wantErr: true,
+		},
+		{
+			name: "Test updater create invalid empty dir",
+			args: args{
+				silverDir:            "",
+				silverConfigFilename: "not-found",
+				updaterFilename:      "",
+			},
+			wantErr: true,
+		},
+		{
+			name: "Test updater create invalid empty conf",
+			args: args{
+				silverDir:            ".",
+				silverConfigFilename: "",
+				updaterFilename:      "",
+			},
+			wantErr: true,
+		},
+		{
+			name: "Test updater create with valid args",
+			args: args{
+				silverDir:            filepath.Dir(file.Name()),
+				silverConfigFilename: filepath.Base(file.Name()),
+				updaterFilename:      "",
+			},
+			wantErr: false,
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, err := updaterconf.Create(tt.args.silverDir, tt.args.silverConfigFilename, tt.args.updaterFilename)
+			if (err != nil) != tt.wantErr {
+				t.Errorf("Create() error = %v, wantErr %v", err, tt.wantErr)
+				return
+			}
+			if err == nil && got == nil {
+				t.Errorf("Create expected to return non nil")
+			}
+		})
+	}
+}
