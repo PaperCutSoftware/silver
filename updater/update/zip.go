@@ -11,6 +11,7 @@ import (
 	"path/filepath"
 )
 
+// ExtractZip extracts a zip from zipfile to destination specified dby dest
 func ExtractZip(zipfile, dest string) error {
 	r, err := zip.OpenReader(zipfile)
 	if err != nil {

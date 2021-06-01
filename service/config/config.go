@@ -19,7 +19,7 @@ import (
 	"github.com/papercutsoftware/silver/lib/osutils"
 )
 
-const StopFileName = ".stop"
+const stopFileName = ".stop"
 const ReloadFileName = ".reload"
 
 type Config struct {
@@ -193,7 +193,7 @@ func (conf *Config) validate() error {
 
 func (conf *Config) applyDefaults() {
 	if conf.ServiceConfig.StopFile == "" {
-		conf.ServiceConfig.StopFile = StopFileName
+		conf.ServiceConfig.StopFile = stopFileName
 	}
 	if conf.ServiceConfig.ReloadFile == "" {
 		conf.ServiceConfig.ReloadFile = ReloadFileName
