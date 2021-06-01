@@ -49,8 +49,8 @@ func Create(
 
 	u := &UpdaterConf{
 		silverDir:            silverDir,
-		silverConfigFilename: silverConfigFilename,
-		updaterFilename:      updaterFilename,
+		silverConfigFilename: filepath.Base(silverConfigFilename),
+		updaterFilename:      filepath.Base(updaterFilename),
 		versionFilename:      ".version",
 		backupFilePrefix:     "backup-",
 		perm:                 0600,
