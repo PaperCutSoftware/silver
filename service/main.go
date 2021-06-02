@@ -46,7 +46,7 @@ func main() {
 func run() (exitCode int) {
 	err := os.Chdir(exeFolder())
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: Unable to set working directory: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "ERROR: Unable to set working directory: %v\n", err)
 		return 1
 	}
 
@@ -55,7 +55,7 @@ func run() (exitCode int) {
 	// Parse config (we don't action any errors quite yet)
 	ctx.conf, err = loadConf()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: Invalid config - %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "ERROR: Invalid config - %v\n", err)
 		return 1
 	}
 
@@ -75,7 +75,7 @@ func run() (exitCode int) {
 		return 0
 	case "install":
 		if err = writeProxyConf(); err != nil {
-			fmt.Fprintf(os.Stderr, "WARNING: Unable to store HTTP Proxy settings: %v\n", err)
+			_, _ = fmt.Fprintf(os.Stderr, "WARNING: Unable to store HTTP Proxy settings: %v\n", err)
 		}
 		defer func() {
 			if exitCode != 0 {
@@ -87,7 +87,7 @@ func run() (exitCode int) {
 				ResetFailCountAfter: 0,
 			}
 			if err = svcutil.SetServiceToRestart(restartConfig); err != nil {
-				fmt.Fprintf(os.Stderr, "WARNING: Failed to set auto restart on failure: %v\n", err)
+				_, _ = fmt.Fprintf(os.Stderr, "WARNING: Failed to set auto restart on failure: %v\n", err)
 			}
 		}()
 		fallthrough
@@ -140,7 +140,7 @@ func osServiceControl(ctx *context) int {
 
 	pidFile := ctx.conf.ServiceConfig.PidFile
 	if pidFile != "" {
-		ioutil.WriteFile(pidFile, []byte(fmt.Sprintf("%d\n", os.Getpid())), 0644)
+		_ = ioutil.WriteFile(pidFile, []byte(fmt.Sprintf("%d\n", os.Getpid())), 0644)
 	}
 	return 0
 }
@@ -186,21 +186,21 @@ func loadConf() (conf *config.Config, err error) {
 
 func setupEnvironment(conf *config.Config) {
 	// Load Silver spacific
-	os.Setenv("SILVER_SERVICE_NAME", conf.ServiceDescription.Name)
-	os.Setenv("SILVER_SERVICE_ROOT", exeFolder())
-	os.Setenv("SILVER_SERVICE_PID", fmt.Sprint(os.Getpid()))
+	_ = os.Setenv("SILVER_SERVICE_NAME", conf.ServiceDescription.Name)
+	_ = os.Setenv("SILVER_SERVICE_ROOT", exeFolder())
+	_ = os.Setenv("SILVER_SERVICE_PID", fmt.Sprint(os.Getpid()))
 
 	// If we have HTTP proxy conf, load this
 	if b, err := ioutil.ReadFile(proxyConfFile()); err == nil {
 		proxy := strings.TrimSpace(string(b))
 		if proxy != "" {
-			os.Setenv("SILVER_HTTP_PROXY", proxy)
+			_ = os.Setenv("SILVER_HTTP_PROXY", proxy)
 		}
 	}
 
 	// Load any configured env
 	for k, v := range conf.EnvironmentVars {
-		os.Setenv(k, v)
+		_ = os.Setenv(k, v)
 	}
 }
 
@@ -226,26 +226,21 @@ func execCommand(ctx *context, args []string) int {
 	 *  args format: 1st element is the command. Any extras are appended to the command.
 	 */
 	if len(ctx.conf.Commands) == 0 {
-		fmt.Fprintf(os.Stderr, "There are no commands configured!\n")
+		_, _ = fmt.Fprintf(os.Stderr, "There are no commands configured!\n")
 		return 1
 	}
 
 	var cmd *config.Command
 	if len(args) > 0 {
 		cmdName := args[0]
-		for _, c := range ctx.conf.Commands {
-			if c.Name == cmdName {
-				cmd = &c
-				break
-			}
-		}
+		cmd = ctx.conf.FindCommand(cmdName)
 	}
 
 	if cmd == nil {
 		// Print command usage
-		fmt.Fprintf(os.Stderr, "Valid commands are:\n")
+		_, _ = fmt.Fprintf(os.Stderr, "Valid commands are:\n")
 		for _, command := range ctx.conf.Commands {
-			fmt.Fprintf(os.Stderr, "    %s\n", command.Name)
+			_, _ = fmt.Fprintf(os.Stderr, "    %s\n", command.Name)
 		}
 		return 1
 	}
@@ -259,7 +254,7 @@ func execCommand(ctx *context, args []string) int {
 
 	exitCode, err := cmdutil.Execute(cmdConf)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+		_, _ = fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 	}
 	return exitCode
 }
@@ -273,7 +268,7 @@ func (o *osService) Start(s service.Service) error {
 	o.ctx.logger.Printf(msg)
 	sysLogger, err := s.Logger(nil)
 	if err != nil {
-		sysLogger.Info(msg)
+		_ = sysLogger.Info(msg)
 	}
 
 	proxy := os.Getenv("SILVER_HTTP_PROXY")
@@ -290,7 +285,7 @@ func (o *osService) Start(s service.Service) error {
 func doStart(ctx *context) {
 	sf := stopFileName(ctx)
 	if sf != "" {
-		os.Remove(sf)
+		_ = os.Remove(sf)
 	}
 	ctx.terminate = make(chan struct{})
 	execStartupTasks(ctx)
@@ -305,7 +300,7 @@ func (o *osService) Stop(s service.Service) error {
 
 	pidFile := o.ctx.conf.ServiceConfig.PidFile
 	if pidFile != "" {
-		os.Remove(pidFile)
+		_ = os.Remove(pidFile)
 	}
 
 	msg := fmt.Sprintf("Stopped '%s' service.", serviceName())
@@ -313,7 +308,7 @@ func (o *osService) Stop(s service.Service) error {
 
 	sysLogger, err := s.Logger(nil)
 	if err != nil {
-		sysLogger.Info(msg)
+		_ = sysLogger.Info(msg)
 	}
 	return nil
 }
@@ -330,7 +325,7 @@ func doStop(ctx *context) {
 	// Create stop file... another method to signal services to stop.
 	sf := stopFileName(ctx)
 	if sf != "" {
-		ioutil.WriteFile(sf, nil, 0644)
+		_ = ioutil.WriteFile(sf, nil, 0644)
 		defer os.Remove(sf)
 	}
 	if ctx.cronManager != nil {
@@ -390,7 +385,7 @@ func startServices(ctx *context) {
 	ctx.logger.Printf("Starting %d services.", len(ctx.conf.Services))
 
 	ctx.runningGroup.Add(len(ctx.conf.Services))
-	for _, service := range ctx.conf.Services {
+	for _, srv := range ctx.conf.Services {
 		go func(service config.Service) {
 			defer ctx.runningGroup.Done()
 
@@ -417,7 +412,7 @@ func startServices(ctx *context) {
 			if err := svcutil.ExecuteService(ctx.terminate, svcConfig); err != nil {
 				ctx.logger.Printf("ERROR: Service '%s' reported: %v", serviceName, err)
 			}
-		}(service)
+		}(srv)
 	}
 }
 

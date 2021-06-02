@@ -14,9 +14,13 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"os"
 	"strings"
+
+	"github.com/papercutsoftware/silver/lib/osutils"
 )
+
+const stopFileName = ".stop"
+const ReloadFileName = ".reload"
 
 type Config struct {
 	ServiceDescription ServiceDescription
@@ -97,21 +101,21 @@ type ReplacementVars struct {
 
 // LoadConfig parses config.
 func LoadConfig(path string, vars ReplacementVars) (conf *Config, err error) {
-	if _, err = os.Stat(path); os.IsNotExist(err) {
-		return nil, fmt.Errorf("The configuration file does not exist. Please place the file here: %s", path)
+	if !osutils.FileExists(path) {
+		return nil, fmt.Errorf("The conf file does not exist. Please put the configuration file here: %s", path)
 	}
 	conf, err = load(path, vars)
 	if err != nil {
 		return nil, err
 	}
-	err = validate(conf)
+	err = conf.validate()
 	if err != nil {
 		return nil, err
 	}
 	return conf, nil
 }
 
-// Merge in an include file.  Include files can contain services, tasks and commands
+// MergeInclude merges in an include file.  Include files can contain services, tasks and commands
 func MergeInclude(conf Config, path string, vars ReplacementVars) (*Config, error) {
 	include, err := load(path, vars)
 	if err != nil {
@@ -128,6 +132,15 @@ func MergeInclude(conf Config, path string, vars ReplacementVars) (*Config, erro
 	return &conf, nil
 }
 
+// LoadConfigNoReplacements parse config similar to LoadConfig but retains any variables found without replacing them.
+func LoadConfigNoReplacements(filePath string) (*Config, error) {
+	conf, err := LoadConfig(filePath, ReplacementVars{
+		ServiceName: "${ServiceName}",
+		ServiceRoot: "${ServiceRoot}",
+	})
+	return conf, err
+}
+
 func load(path string, vars ReplacementVars) (conf *Config, err error) {
 	s, err := ioutil.ReadFile(path)
 	if err != nil {
@@ -137,7 +150,7 @@ func load(path string, vars ReplacementVars) (conf *Config, err error) {
 	// Special case for an empty file (empty file will raise error with JSON parser)
 	if string(s) == "" {
 		conf = &Config{}
-		applyDefaults(conf)
+		conf.applyDefaults()
 		return conf, nil
 	}
 
@@ -157,24 +170,33 @@ func load(path string, vars ReplacementVars) (conf *Config, err error) {
 		return nil, err
 	}
 
-	applyDefaults(conf)
+	conf.applyDefaults()
 
 	return conf, nil
 }
 
-func validate(conf *Config) error {
+func (conf *Config) FindCommand(cmdName string) *Command {
+	for _, c := range conf.Commands {
+		if c.Name == cmdName {
+			return &c
+		}
+	}
+	return nil
+}
+
+func (conf *Config) validate() error {
 	if conf.ServiceDescription.DisplayName == "" {
 		return fmt.Errorf("ServiceDescription.DisplayName is required configuration")
 	}
 	return nil
 }
 
-func applyDefaults(conf *Config) {
+func (conf *Config) applyDefaults() {
 	if conf.ServiceConfig.StopFile == "" {
-		conf.ServiceConfig.StopFile = ".stop"
+		conf.ServiceConfig.StopFile = stopFileName
 	}
 	if conf.ServiceConfig.ReloadFile == "" {
-		conf.ServiceConfig.ReloadFile = ".reload"
+		conf.ServiceConfig.ReloadFile = ReloadFileName
 	}
 
 	if conf.ServiceConfig.LogFileMaxSizeMb == 0 {
@@ -196,7 +218,7 @@ func applyDefaults(conf *Config) {
 func replaceVars(in string, replacements map[string]string) (out string) {
 	out = in
 	for key, value := range replacements {
-		out = strings.Replace(out, key, value, -1)
+		out = strings.ReplaceAll(out, key, value)
 	}
 	return out
 }
