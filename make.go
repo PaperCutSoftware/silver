@@ -1,4 +1,4 @@
-//// +build ignore
+// +build ignore
 
 // SILVER - Service Wrapper
 //
