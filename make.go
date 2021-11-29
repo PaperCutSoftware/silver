@@ -44,7 +44,7 @@ var (
 )
 
 func usage() {
-	fmt.Println("Usage: go run make.go [flags] [args]")
+	fmt.Println("Usage: go run make.go [flagged args] [non-flagged args]")
 	fmt.Println("-goos=<operating system> target operating system for silver executable. Default is taken from runtime")
 	fmt.Println("-goarch=<architecture> target architecture for silver executable. Default is taken from runtime")
 	fmt.Println("Build action. Can be either 'all'(build all) or 'test'(test all). Default is 'all'")
