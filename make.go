@@ -68,8 +68,8 @@ func main() {
 	buildOutputDir = filepath.Join(projectRoot, "build", *goos)
 
 	action := "all"
-	if len(flag.Args()) > 0 {
-		action = os.Args[0]
+	if len(flag.Args()) > 1 {
+		action = os.Args[1]
 	}
 
 	switch action {
@@ -95,8 +95,9 @@ func buildAll() {
 	makeDir(buildOutputDir)
 
 	goos := os.Getenv("GOOS")
+	goarch := os.Getenv("GOARCH")
 
-	fmt.Printf("Building binaries for %s...\n", goos)
+	fmt.Printf("Building binaries for %s/%s ...\n", goos, goarch)
 	_ = runCmd("go", "build", "-ldflags", "-s -w", "-o", makeOutputPath(buildOutputDir, "updater", goos == "windows"), rootNamespace+"/updater")
 	_ = runCmd("go", "build", "-ldflags", "-s -w", "-o", makeOutputPath(buildOutputDir, "service", goos == "windows"), rootNamespace+"/service")
 	_ = runCmd("go", "build", "-tags", "nohttp", "-ldflags", "-s -w", "-o", makeOutputPath(buildOutputDir, "service-no-http", goos == "windows"), rootNamespace+"/service")
