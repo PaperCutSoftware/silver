@@ -82,15 +82,6 @@ func main() {
 	}
 }
 
-func find(slice []string, value string) bool {
-	for _, item := range slice {
-		if item == value {
-			return true
-		}
-	}
-	return false
-}
-
 func buildAll() {
 	makeDir(buildOutputDir)
 
@@ -98,12 +89,12 @@ func buildAll() {
 	goarch := os.Getenv("GOARCH")
 
 	fmt.Printf("Building binaries for %s/%s ...\n", goos, goarch)
-	_ = runCmd("go", "build", "-ldflags", "-s -w", "-o", makeOutputPath(buildOutputDir, "updater", goos == "windows"), rootNamespace+"/updater")
-	_ = runCmd("go", "build", "-ldflags", "-s -w", "-o", makeOutputPath(buildOutputDir, "service", goos == "windows"), rootNamespace+"/service")
-	_ = runCmd("go", "build", "-tags", "nohttp", "-ldflags", "-s -w", "-o", makeOutputPath(buildOutputDir, "service-no-http", goos == "windows"), rootNamespace+"/service")
+	_ = runCmd("go", "build", "-ldflags", "-s -w", "-o", makeOutputPath(buildOutputDir, "updater"), rootNamespace+"/updater")
+	_ = runCmd("go", "build", "-ldflags", "-s -w", "-o", makeOutputPath(buildOutputDir, "service"), rootNamespace+"/service")
+	_ = runCmd("go", "build", "-tags", "nohttp", "-ldflags", "-s -w", "-o", makeOutputPath(buildOutputDir, "service-no-http"), rootNamespace+"/service")
 	if goos == "windows" {
-		_ = runCmd("go", "build", "-tags", "nohttp", "-ldflags", "-s -w  -H=windowsgui", "-o", makeOutputPath(buildOutputDir, "service-no-window", goos == "windows"), rootNamespace+"/service")
-		_ = runCmd("go", "build", "-ldflags", "-s -w -H=windowsgui", "-o", makeOutputPath(buildOutputDir, "updater-no-window", goos == "windows"), rootNamespace+"/updater")
+		_ = runCmd("go", "build", "-tags", "nohttp", "-ldflags", "-s -w  -H=windowsgui", "-o", makeOutputPath(buildOutputDir, "service-no-window"), rootNamespace+"/service")
+		_ = runCmd("go", "build", "-ldflags", "-s -w -H=windowsgui", "-o", makeOutputPath(buildOutputDir, "updater-no-window"), rootNamespace+"/updater")
 	}
 
 	fmt.Printf("\nCOMPLETE. You'll find the files in:\n    '%s'\n", buildOutputDir)
@@ -130,8 +121,11 @@ func makeDir(dir string) {
 	}
 }
 
-func makeOutputPath(dir, name string, isWindowsOS bool) string {
-	if isWindowsOS {
+func makeOutputPath(dir, name string) string {
+
+	goos := os.Getenv("GOOS")
+
+	if goos == "windows" {
 		if !strings.HasSuffix(name, ".exe") {
 			name = name + ".exe"
 		}
