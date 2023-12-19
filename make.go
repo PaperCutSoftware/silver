@@ -1,3 +1,4 @@
+//go:build ignore
 // +build ignore
 
 // SILVER - Service Wrapper
@@ -11,15 +12,17 @@
 // the need to configure/setup a Go workspace.
 //
 // Run on the command line with:
-//     $ go run make.go
+//
+//	$ go run make.go
 //
 // Other options:
-//   Run tests:
-//     $ go run make.go test
+//
+//	Run tests:
+//	  $ go run make.go test
 //
 // Concepts loosely based on concepts in Camlistore
-//     https://github.com/bradfitz/camlistore
 //
+//	https://github.com/bradfitz/camlistore
 package main
 
 import (
@@ -52,13 +55,19 @@ func usage() {
 }
 
 func main() {
-	goos := flag.String("goos", runtime.GOOS,"Specify target operating system for cross compilation")
-	goarch := flag.String("goarch", runtime.GOARCH,"Specify target architecture for cross compilation")
+	goos := flag.String("goos", runtime.GOOS, "Specify target operating system for cross compilation")
+	goarch := flag.String("goarch", runtime.GOARCH, "Specify target architecture for cross compilation")
 	flag.Parse()
 
-	_ = os.Setenv("GOFLAGS", "-mod=vendor")
-	_ = os.Setenv("GOOS", *goos)
-	_ = os.Setenv("GOARCH", *goarch)
+	_ = os.Setenv("GOFLAGS", "-mod=mod")
+
+	if goos != nil {
+		_ = os.Setenv("GOOS", *goos)
+	}
+
+	if goarch != nil {
+		_ = os.Setenv("GOARCH", *goarch)
+	}
 
 	var err error
 	projectRoot, err = os.Getwd()
