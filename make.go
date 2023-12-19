@@ -17,12 +17,13 @@
 //   Run tests:
 //     $ go run make.go test
 //
-// Concepts loosly based on concepts in Camlistore
+// Concepts loosely based on concepts in Camlistore
 //     https://github.com/bradfitz/camlistore
 //
 package main
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -43,24 +44,31 @@ var (
 )
 
 func usage() {
-	fmt.Println("Usage: go run make.go [command]")
-	fmt.Println("    all")
-	fmt.Println("    test")
+	fmt.Println("Usage: go run make.go [flagged args] [non-flagged args]")
+	fmt.Println("-goos=<operating system> target operating system for silver executable. Default is taken from runtime")
+	fmt.Println("-goarch=<architecture> target architecture for silver executable. Default is taken from runtime")
+	fmt.Println("Build action. Can be either 'all'(build all) or 'test'(test all). Default is 'all'")
 	os.Exit(1)
 }
 
 func main() {
+	goos := flag.String("goos", runtime.GOOS,"Specify target operating system for cross compilation")
+	goarch := flag.String("goarch", runtime.GOARCH,"Specify target architecture for cross compilation")
+	flag.Parse()
+
 	_ = os.Setenv("GOFLAGS", "-mod=vendor")
+	_ = os.Setenv("GOOS", *goos)
+	_ = os.Setenv("GOARCH", *goarch)
 
 	var err error
 	projectRoot, err = os.Getwd()
 	if err != nil {
 		panic(fmt.Sprintf("Failed to get current directory: %v\n", err))
 	}
-	buildOutputDir = filepath.Join(projectRoot, "build", runtime.GOOS)
+	buildOutputDir = filepath.Join(projectRoot, "build", *goos)
 
 	action := "all"
-	if len(os.Args) > 1 {
+	if len(flag.Args()) > 1 {
 		action = os.Args[1]
 	}
 
@@ -77,11 +85,14 @@ func main() {
 func buildAll() {
 	makeDir(buildOutputDir)
 
-	fmt.Printf("Building binaries for %s...\n", runtime.GOOS)
+	goos := os.Getenv("GOOS")
+	goarch := os.Getenv("GOARCH")
+
+	fmt.Printf("Building binaries for %s/%s ...\n", goos, goarch)
 	_ = runCmd("go", "build", "-ldflags", "-s -w", "-o", makeOutputPath(buildOutputDir, "updater"), rootNamespace+"/updater")
 	_ = runCmd("go", "build", "-ldflags", "-s -w", "-o", makeOutputPath(buildOutputDir, "service"), rootNamespace+"/service")
 	_ = runCmd("go", "build", "-tags", "nohttp", "-ldflags", "-s -w", "-o", makeOutputPath(buildOutputDir, "service-no-http"), rootNamespace+"/service")
-	if runtime.GOOS == "windows" {
+	if goos == "windows" {
 		_ = runCmd("go", "build", "-tags", "nohttp", "-ldflags", "-s -w  -H=windowsgui", "-o", makeOutputPath(buildOutputDir, "service-no-window"), rootNamespace+"/service")
 		_ = runCmd("go", "build", "-ldflags", "-s -w -H=windowsgui", "-o", makeOutputPath(buildOutputDir, "updater-no-window"), rootNamespace+"/updater")
 	}
@@ -111,7 +122,10 @@ func makeDir(dir string) {
 }
 
 func makeOutputPath(dir, name string) string {
-	if runtime.GOOS == "windows" {
+
+	goos := os.Getenv("GOOS")
+
+	if goos == "windows" {
 		if !strings.HasSuffix(name, ".exe") {
 			name = name + ".exe"
 		}
