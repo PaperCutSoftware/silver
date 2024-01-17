@@ -9,8 +9,10 @@
 package main
 
 import (
+	"crypto/tls"
 	"flag"
 	"fmt"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
@@ -24,7 +26,7 @@ var (
 	showVersion     = flag.Bool("v", false, "Display current installed version and exit")
 	overrideVersion = flag.String("c", "", "Override current installed version")
 	httpProxy       = flag.String("p", "", "Set HTTP proxy in format http://server:port")
-	unsafeHTTP      = flag.Bool("unsafe", false, "Debug Only: Support non-https update checks for testing.")
+	unsafeHTTP      = flag.Bool("unsafe", false, "Support non-https & insecure certificates")
 )
 
 func usage() {
@@ -81,6 +83,10 @@ func main() {
 	if !*unsafeHTTP && !strings.HasPrefix(strings.ToLower(checkURL), "https") {
 		_, _ = fmt.Fprintf(os.Stderr, "ERROR: The update URL must be HTTPS for security reasons!\n")
 		os.Exit(1)
+	}
+
+	if *unsafeHTTP { // Overwrite default HTTP transport to allow insecure https certificates
+		http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 
 	setupHTTPProxy()

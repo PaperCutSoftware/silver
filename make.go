@@ -77,7 +77,7 @@ func main() {
 	buildOutputDir = filepath.Join(projectRoot, "build", *goos)
 
 	action := "all"
-	if len(flag.Args()) > 1 {
+	if len(flag.Args()) >= 1 {
 		action = os.Args[1]
 	}
 
