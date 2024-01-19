@@ -26,7 +26,8 @@ var (
 	showVersion     = flag.Bool("v", false, "Display current installed version and exit")
 	overrideVersion = flag.String("c", "", "Override current installed version")
 	httpProxy       = flag.String("p", "", "Set HTTP proxy in format http://server:port")
-	unsafeHTTP      = flag.Bool("unsafe", false, "Support non-https & insecure certificates")
+	allowHTTP       = flag.Bool("http", false, "Debug only: Support non-https for update checking")
+	allowInsecure   = flag.Bool("insecure", false, "Support insecure & self-signed certificates for update checking")
 )
 
 func usage() {
@@ -80,12 +81,12 @@ func main() {
 	}
 	checkURL := flag.Arg(0)
 
-	if !*unsafeHTTP && !strings.HasPrefix(strings.ToLower(checkURL), "https") {
+	if !*allowHTTP && !strings.HasPrefix(strings.ToLower(checkURL), "https") {
 		_, _ = fmt.Fprintf(os.Stderr, "ERROR: The update URL must be HTTPS for security reasons!\n")
 		os.Exit(1)
 	}
 
-	if *unsafeHTTP { // Overwrite default HTTP transport to allow insecure https certificates
+	if *allowInsecure { // Overwrite default HTTP transport to allow insecure https certificates
 		http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 
