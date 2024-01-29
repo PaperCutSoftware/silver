@@ -90,9 +90,9 @@ func ExecuteTask(terminate chan struct{}, taskConf TaskConfig) (exitCode int, er
 
 	executable := procmngt.NewExecutable(execConf)
 	if execConf.StartupDelay > 0 {
-		logf(taskConf.Logger, taskName, "Starting task (delayed: %s, timeout: %s)", execConf.StartupDelay.String(), execConf.ExecTimeout.String())
+		logf(taskConf.Logger, taskName, "Starting task (delayed: %s, timeout: %s)", execConf.StartupDelay, execConf.ExecTimeout)
 	} else {
-		logf(taskConf.Logger, taskName, "Starting task (timeout: %s)", execConf.ExecTimeout.String())
+		logf(taskConf.Logger, taskName, "Starting task (timeout: %s)", execConf.ExecTimeout)
 	}
 	exitCode, err = executable.Execute(terminate)
 	logf(taskConf.Logger, taskName, "Task Stopped..., exit code %d, err %v", exitCode, err)
@@ -180,7 +180,7 @@ restartLoop:
 		}
 		executable := procmngt.NewExecutable(execConf)
 		if execConf.StartupDelay > 0 {
-			logf(che.svcConfig.Logger, che.serviceName, "Starting service (delayed %s)", execConf.StartupDelay.String())
+			logf(che.svcConfig.Logger, che.serviceName, "Starting service (delayed %s)", execConf.StartupDelay)
 		} else {
 			logf(che.svcConfig.Logger, che.serviceName, "Starting service...")
 		}

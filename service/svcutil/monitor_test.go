@@ -40,8 +40,8 @@ func Test_ExecuteService_MonitorConfig_EchoPing(t *testing.T) {
 
 	// Assert
 	elapsed := time.Since(start)
-	expected := (7 + 1) * time.Second
-	threshold := 2500 * time.Millisecond
+	expected := (5 + 1) * time.Second
+	threshold := 600 * time.Millisecond
 	if elapsed > expected+threshold {
 		t.Fatalf("Elapse time longer than expected.  Took: %v", elapsed)
 	}

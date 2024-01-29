@@ -59,15 +59,8 @@ func main() {
 	goarch := flag.String("goarch", runtime.GOARCH, "Specify target architecture for cross compilation")
 	flag.Parse()
 
-	_ = os.Setenv("GOFLAGS", "-mod=mod")
-
-	if goos != nil {
-		_ = os.Setenv("GOOS", *goos)
-	}
-
-	if goarch != nil {
-		_ = os.Setenv("GOARCH", *goarch)
-	}
+	_ = os.Setenv("GOOS", *goos)
+	_ = os.Setenv("GOARCH", *goarch)
 
 	var err error
 	projectRoot, err = os.Getwd()
@@ -77,8 +70,8 @@ func main() {
 	buildOutputDir = filepath.Join(projectRoot, "build", *goos)
 
 	action := "all"
-	if len(flag.Args()) >= 1 {
-		action = os.Args[1]
+	if len(flag.Args()) > 0 {
+		action = flag.Arg(0)
 	}
 
 	switch action {
