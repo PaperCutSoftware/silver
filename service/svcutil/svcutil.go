@@ -1,6 +1,6 @@
 // SILVER - Service Wrapper
 //
-// Copyright (c) 2016-2021 PaperCut Software http://www.papercut.com/
+// Copyright (c) 2016-2024 PaperCut Software http://www.papercut.com/
 // Use of this source code is governed by an MIT or GPL Version 2 license.
 // See the project's LICENSE file for more information.
 //
@@ -73,6 +73,11 @@ func ExecuteTask(terminate chan struct{}, taskConf TaskConfig) (exitCode int, er
 	}
 
 	taskName := exeName(taskConf.Path)
+
+	if startupDelay > 0 { // Long delays may exceed timeout. Recalculate timeout here rather than in procmngt.Execute()
+		taskConf.ExecTimeout = taskConf.ExecTimeout + startupDelay
+	}
+
 	execConf := procmngt.ExecConfig{
 		Path:             taskConf.Path,
 		Args:             taskConf.Args,
@@ -85,9 +90,9 @@ func ExecuteTask(terminate chan struct{}, taskConf TaskConfig) (exitCode int, er
 
 	executable := procmngt.NewExecutable(execConf)
 	if execConf.StartupDelay > 0 {
-		logf(taskConf.Logger, taskName, "Starting task (delayed %s)", execConf.StartupDelay.String())
+		logf(taskConf.Logger, taskName, "Starting task (delayed: %s, timeout: %s)", execConf.StartupDelay, execConf.ExecTimeout)
 	} else {
-		logf(taskConf.Logger, taskName, "Starting task...")
+		logf(taskConf.Logger, taskName, "Starting task (timeout: %s)", execConf.ExecTimeout)
 	}
 	exitCode, err = executable.Execute(terminate)
 	logf(taskConf.Logger, taskName, "Task Stopped..., exit code %d, err %v", exitCode, err)
@@ -175,7 +180,7 @@ restartLoop:
 		}
 		executable := procmngt.NewExecutable(execConf)
 		if execConf.StartupDelay > 0 {
-			logf(che.svcConfig.Logger, che.serviceName, "Starting service (delayed %s)", execConf.StartupDelay.String())
+			logf(che.svcConfig.Logger, che.serviceName, "Starting service (delayed %s)", execConf.StartupDelay)
 		} else {
 			logf(che.svcConfig.Logger, che.serviceName, "Starting service...")
 		}
