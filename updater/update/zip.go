@@ -13,6 +13,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"runtime"
 )
 
 // ExtractZip extracts a zip from zipfile to destination specified dby dest
@@ -39,7 +40,11 @@ func extractZipItem(f *zip.File, dest string) error {
 
 	path := filepath.Join(dest, f.Name)
 	if f.FileInfo().IsDir() {
-		err = os.MkdirAll(path, f.Mode())
+		if runtime.GOOS == "windows" {
+			err = os.MkdirAll(path, f.Mode())
+		} else {
+			err = os.MkdirAll(path, f.Mode()|0111)
+		}
 		if err != nil {
 			return err
 		}
