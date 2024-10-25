@@ -105,7 +105,7 @@ func osServiceControl(ctx *context) int {
 	if logFile == "" {
 		logFile = serviceName + ".log"
 	}
-	ctx.logger = logging.NewFileLoggerWithMaxSize(logFile, ctx.conf.ServiceConfig.UserName, maxSize)
+	ctx.logger = logging.NewFileLoggerWithMaxSize(logFile, ctx.conf.ServiceConfig.UserName, maxSize, ctx.conf.ServiceConfig.LogFileMaxBackupFiles)
 
 	// Setup service
 	svcConfig := &service.Config{
