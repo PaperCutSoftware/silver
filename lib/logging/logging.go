@@ -152,12 +152,14 @@ func (rf *rollingFile) roll() error {
 		}
 		renameTo = fmt.Sprintf("%s.%d", rf.file.Name(), i)
 
-		switch err := os.Rename(renameFrom, renameTo); {
-		case err == nil, errors.Is(err, os.ErrNotExist):
+		if err := os.Rename(renameFrom, renameTo); err == nil || errors.Is(err, os.ErrNotExist) {
+			// Continue if no error or if the error is 'file not found'
 			continue
-		case err != nil:
+		} else {
+			// For any other error.
 			fmt.Fprintf(os.Stderr, "ERROR: Error renaming %s to %s. %v\n", renameFrom, renameTo, err)
 		}
+
 	}
 
 	// Reopen a new log file for writing
