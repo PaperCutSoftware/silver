@@ -16,6 +16,7 @@ package logging
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -137,24 +138,25 @@ func (rf *rollingFile) open() error {
 }
 
 func (rf *rollingFile) roll() error {
-	// Flush the current buffer
 	rf.bufWriter.Flush()
 	rf.file.Close()
 
 	// Start from the last backup file and move everything back by 1 step
 	for i := rf.maxBackupFiles; i > 0; i-- {
-		var olderFile, newerFile string
+		var renameFrom, renameTo string
 
 		if i == 1 {
-			olderFile = rf.file.Name() // Original file
+			renameFrom = rf.file.Name() // Original file
 		} else {
-			olderFile = fmt.Sprintf("%s.%d", rf.file.Name(), i-1)
+			renameFrom = fmt.Sprintf("%s.%d", rf.file.Name(), i-1)
 		}
-		newerFile = fmt.Sprintf("%s.%d", rf.file.Name(), i)
+		renameTo = fmt.Sprintf("%s.%d", rf.file.Name(), i)
 
-		// If the older file exists, rename it to the next higher numbered file
-		if _, err := os.Stat(olderFile); err == nil {
-			os.Rename(olderFile, newerFile)
+		switch err := os.Rename(renameFrom, renameTo); {
+		case err == nil, errors.Is(err, os.ErrNotExist):
+			continue
+		case err != nil:
+			fmt.Fprintf(os.Stderr, "ERROR: Error renaming %s to %s. %v\n", renameFrom, renameTo, err)
 		}
 	}
 

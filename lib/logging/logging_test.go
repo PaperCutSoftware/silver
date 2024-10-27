@@ -2,7 +2,6 @@ package logging
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 	"testing"
@@ -21,7 +20,7 @@ func TestStandardLogging(t *testing.T) {
 	logger.Printf(msg)
 	CloseAllOpenFileLoggers()
 
-	output, err := ioutil.ReadFile(lname)
+	output, err := os.ReadFile(lname)
 	if err != nil {
 		t.Errorf("Unable to read file: %v", err)
 	}
@@ -33,36 +32,43 @@ func TestStandardLogging(t *testing.T) {
 
 func TestRollingLog(t *testing.T) {
 	lname := fmt.Sprintf("%s/test-rolling-log-%d.log", os.TempDir(), time.Now().Unix())
-	rname := lname + ".1"
 
+	// Create the logger with log rotation for max 5 backup files.
 	logger := NewFileLoggerWithMaxSize(lname, "", 1024, 5)
 	defer func() {
-		os.Remove(lname)
-		os.Remove(rname)
+		// Clean up all the log files after the test.
+		for i := 0; i <= 5; i++ { // Remove the main log file and the 5 backups.
+			os.Remove(fmt.Sprintf("%s.%d", lname, i))
+		}
+		os.Remove(lname) // Also remove the main log.
 	}()
 
 	msg := "TestRollingLog"
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 2000; i++ {
 		logger.Printf("%s-%d", msg, i)
 	}
 	CloseAllOpenFileLoggers()
 
-	// Test main log file
-	output, err := ioutil.ReadFile(lname)
-	if err != nil {
-		t.Errorf("Unable to read file: %v", err)
-	}
-	if !strings.Contains(string(output), msg) {
-		t.Errorf("Expected '%s', got '%s'", msg, output)
+	rolledFileName := lname
+	// Check that exactly 5 log files are present
+	for i := 0; i <= 5; i++ {
+		if _, err := os.Stat(rolledFileName); os.IsNotExist(err) {
+			t.Errorf("Expected log file '%s' to exist, but it does not.", rolledFileName)
+		}
+		output, err := os.ReadFile(rolledFileName)
+		if err != nil {
+			t.Errorf("Unable to read file: %v", err)
+		}
+		if !strings.Contains(string(output), msg) {
+			t.Errorf("Expected '%s', got '%s'", msg, output)
+		}
+		rolledFileName = fmt.Sprintf("%s.%d", lname, i+1) // lname.1, lname.2, etc.
 	}
 
-	// Tested the older rolled file
-	rolledOutput, err := ioutil.ReadFile(rname)
-	if err != nil {
-		t.Errorf("Unable to read rolled file: %v", err)
-	}
-	if !strings.Contains(string(rolledOutput), msg) {
-		t.Errorf("Expected '%s', got '%s'", msg, rolledOutput)
+	// Make sure no extra log files exist (like lname.6 or higher)
+	extraFileName := fmt.Sprintf("%s.%d", lname, 6)
+	if _, err := os.Stat(extraFileName); err == nil {
+		t.Errorf("Unexpected log file '%s' found. Only 5 backup files should be present.", extraFileName)
 	}
 }
 
@@ -86,7 +92,7 @@ func TestRollingLogFlush_IsFlushed(t *testing.T) {
 	time.Sleep(5*time.Second + 500*time.Millisecond)
 
 	// Assert
-	output, err := ioutil.ReadFile(lname)
+	output, err := os.ReadFile(lname)
 	if err != nil {
 		t.Fatalf("Error reading log: %v", err)
 	}
