@@ -3,7 +3,6 @@
 // Copyright (c) 2014-2021 PaperCut Software http://www.papercut.com/
 // Use of this source code is governed by an MIT or GPL Version 2 license.
 // See the project's LICENSE file for more information.
-//
 package main
 
 import (
@@ -269,10 +268,12 @@ type osService struct {
 
 func (o *osService) Start(s service.Service) error {
 	msg := fmt.Sprintf("Service '%s' started.", serviceName())
-	o.ctx.logger.Printf(msg)
+	o.ctx.logger.Print(msg)
 	sysLogger, err := s.Logger(nil)
-	if err != nil {
+	if err == nil {
 		_ = sysLogger.Info(msg)
+	} else {
+		_, _ = fmt.Fprintf(os.Stderr, "ERROR: Creating sysLogger %v\n", err)
 	}
 
 	proxy := os.Getenv("SILVER_HTTP_PROXY")
@@ -298,7 +299,7 @@ func doStart(ctx *context) {
 }
 
 func (o *osService) Stop(s service.Service) error {
-	o.ctx.logger.Printf(fmt.Sprintf("Stopping '%s' service...", serviceName()))
+	o.ctx.logger.Printf("Stopping '%s' service...", serviceName())
 
 	doStop(o.ctx)
 
@@ -308,11 +309,13 @@ func (o *osService) Stop(s service.Service) error {
 	}
 
 	msg := fmt.Sprintf("Stopped '%s' service.", serviceName())
-	o.ctx.logger.Printf(msg)
+	o.ctx.logger.Print(msg)
 
 	sysLogger, err := s.Logger(nil)
-	if err != nil {
+	if err == nil {
 		_ = sysLogger.Info(msg)
+	} else {
+		_, _ = fmt.Fprintf(os.Stderr, "ERROR: Creating sysLogger %v\n", err)
 	}
 	return nil
 }
