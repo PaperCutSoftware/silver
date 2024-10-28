@@ -40,13 +40,14 @@ type ServiceDescription struct {
 }
 
 type ServiceConfig struct {
-	StopFile         string
-	ReloadFile       string
-	LogFile          string
-	LogFileMaxSizeMb int
-	PidFile          string
-	UserLevel        bool
-	UserName         string
+	StopFile              string
+	ReloadFile            string
+	LogFile               string
+	LogFileMaxSizeMb      int64
+	LogFileMaxBackupFiles int
+	PidFile               string
+	UserLevel             bool
+	UserName              string
 }
 
 type command struct {
@@ -201,6 +202,9 @@ func (conf *Config) applyDefaults() {
 
 	if conf.ServiceConfig.LogFileMaxSizeMb == 0 {
 		conf.ServiceConfig.LogFileMaxSizeMb = 50
+	}
+	if conf.ServiceConfig.LogFileMaxBackupFiles == 0 {
+		conf.ServiceConfig.LogFileMaxBackupFiles = 1
 	}
 
 	if conf.EnvironmentVars == nil {

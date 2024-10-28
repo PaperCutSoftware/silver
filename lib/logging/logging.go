@@ -16,6 +16,7 @@ package logging
 
 import (
 	"bufio"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -26,15 +27,15 @@ import (
 )
 
 const (
-	defaultMaxSize       = 10 * 1024 * 1024 // 10 MB
-	defaultFlushInterval = 5 * time.Second
+	defaultMaxSize        = 10 * 1024 * 1024 // 10 MB
+	defaultMaxBackupFiles = 1
+	defaultFlushInterval  = 5 * time.Second
 )
 
 var (
- 	openRollingFiles = []*rollingFile{}
- 	changeOwnerOfFileFunc func(name, owner string) error
+	openRollingFiles      = []*rollingFile{}
+	changeOwnerOfFileFunc func(name, owner string) error
 )
-
 
 // Why a wrapper - see finalizer comment below.
 type rollingFileWrapper struct {
@@ -47,6 +48,7 @@ type rollingFile struct {
 	owner               string
 	file                *os.File
 	maxSize             int64
+	maxBackupFiles      int
 	bufWriter           *bufio.Writer
 	bytesSinceLastFlush int64
 	currentSize         int64
@@ -78,14 +80,15 @@ func stopFlusher(rfw *rollingFileWrapper) {
 	close(rfw.flusher.stop)
 }
 
-func newRollingFile(name string, owner string, maxSize int64) (rf *rollingFile, err error) {
+func newRollingFile(name string, owner string, maxSize int64, maxFiles int) (rf *rollingFile, err error) {
 	if maxSize <= 0 {
 		maxSize = defaultMaxSize
 	}
 	rf = &rollingFile{
-		name:    name,
-		owner:   owner,
-		maxSize: maxSize,
+		name:           name,
+		owner:          owner,
+		maxSize:        maxSize,
+		maxBackupFiles: maxFiles,
 		flusher: &flusher{
 			interval: defaultFlushInterval,
 			stop:     make(chan struct{}),
@@ -135,13 +138,31 @@ func (rf *rollingFile) open() error {
 }
 
 func (rf *rollingFile) roll() error {
-	// FUTURE: Support more than one roll.
 	rf.bufWriter.Flush()
 	rf.file.Close()
-	archivedFile := rf.file.Name() + ".1"
-	// Remove old archive and copy over existing
-	os.Remove(archivedFile)
-	os.Rename(rf.file.Name(), archivedFile)
+
+	// Start from the last backup file and move everything back by 1 step
+	for i := rf.maxBackupFiles; i > 0; i-- {
+		var renameFrom, renameTo string
+
+		if i == 1 {
+			renameFrom = rf.file.Name() // Original file
+		} else {
+			renameFrom = fmt.Sprintf("%s.%d", rf.file.Name(), i-1)
+		}
+		renameTo = fmt.Sprintf("%s.%d", rf.file.Name(), i)
+
+		if err := os.Rename(renameFrom, renameTo); err == nil || errors.Is(err, os.ErrNotExist) {
+			// Continue if no error or if the error is 'file not found'
+			continue
+		} else {
+			// For any other error.
+			fmt.Fprintf(os.Stderr, "ERROR: Error renaming %s to %s. %v\n", renameFrom, renameTo, err)
+		}
+
+	}
+
+	// Reopen a new log file for writing
 	return rf.open()
 }
 
@@ -156,12 +177,12 @@ func openLogFile(name string, owner string) (f *os.File, err error) {
 
 // NewFileLogger implements a rolling logger with default maximum size (50Mb)
 func NewFileLogger(file string, owner string) (logger *log.Logger) {
-	return NewFileLoggerWithMaxSize(file, owner, defaultMaxSize)
+	return NewFileLoggerWithMaxSize(file, owner, defaultMaxSize, defaultMaxBackupFiles)
 }
 
 // NewFileLoggerWithMaxSize implements a rolling logger with a set size
-func NewFileLoggerWithMaxSize(file string, owner string, maxSize int64) (logger *log.Logger) {
-	rf, err := newRollingFile(file, owner, maxSize)
+func NewFileLoggerWithMaxSize(file string, owner string, maxSize int64, maxBackupFiles int) (logger *log.Logger) {
+	rf, err := newRollingFile(file, owner, maxSize, maxBackupFiles)
 	// This trick ensures that the flusher goroutine does not keep
 	// the returned wrapper object from being garbage collected. When it is
 	// garbage collected, the finalizer stops the janitor goroutine, after
