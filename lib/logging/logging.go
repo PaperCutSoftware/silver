@@ -18,7 +18,7 @@ import (
 	"bufio"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"log"
 	"os"
 	"runtime"
@@ -209,11 +209,17 @@ func CloseAllOpenFileLoggers() {
 
 // NewNilLogger is a logger noop/discade implementation
 func NewNilLogger() *log.Logger {
-	return log.New(ioutil.Discard, "", 0)
+	return log.New(io.Discard, "", 0)
 }
 
-// NewConsoleLogger is a basic logger to Stderr
-func NewConsoleLogger() (logger *log.Logger) {
+// NewConsoleErrorLogger is a basic logger to Stderr
+func NewConsoleErrorLogger() (logger *log.Logger) {
 	logger = log.New(os.Stderr, "", log.Ldate|log.Ltime)
+	return logger
+}
+
+// NewConsoleLogger is a basic logger to Stdout
+func NewConsoleLogger() (logger *log.Logger) {
+	logger = log.New(os.Stdout, "", log.Ldate|log.Ltime)
 	return logger
 }

@@ -34,6 +34,7 @@ type context struct {
 	conf         *config.Config
 	terminate    chan struct{}
 	logger       *log.Logger
+	errorLogger  *log.Logger
 	runningGroup sync.WaitGroup
 	cronManager  *cron.Cron
 }
@@ -106,8 +107,10 @@ func osServiceControl(ctx *context) int {
 	}
 	if logFile == "os.stdout" {
 		ctx.logger = logging.NewConsoleLogger()
+		ctx.errorLogger = logging.NewConsoleErrorLogger()
 	} else {
-  		ctx.logger = logging.NewFileLoggerWithMaxSize(logFile, ctx.conf.ServiceConfig.UserName, maxSize, ctx.conf.ServiceConfig.LogFileMaxBackupFiles)
+		ctx.logger = logging.NewFileLoggerWithMaxSize(logFile, ctx.conf.ServiceConfig.UserName, maxSize, ctx.conf.ServiceConfig.LogFileMaxBackupFiles)
+		ctx.errorLogger = ctx.logger // use the same output for both stdout and errors
 	}
 
 	// Setup service
@@ -372,7 +375,7 @@ func execStartupTasks(ctx *context) {
 			taskName := path.Base(task.Path)
 			taskConfig := createTaskConfig(ctx, task.Task)
 			if exitCode, err := svcutil.ExecuteTask(ctx.terminate, taskConfig); err != nil {
-				ctx.logger.Printf("ERROR: Startup task '%s' reported: %v", taskName, err)
+				ctx.errorLogger.Printf("ERROR: Startup task '%s' reported: %v", taskName, err)
 			} else {
 				ctx.logger.Printf("Startup task '%s' finished with exit code %d", taskName, exitCode)
 			}
@@ -403,6 +406,7 @@ func startServices(ctx *context) {
 			svcConfig.GracefulShutDown = time.Duration(service.GracefulShutdownTimeoutSecs) * time.Second
 			svcConfig.StartupDelay = time.Duration(service.StartupDelaySecs) * time.Second
 			svcConfig.Logger = ctx.logger
+			svcConfig.ErrorLogger = ctx.errorLogger
 			svcConfig.CrashConfig = svcutil.CrashConfig{
 				MaxCountPerHour: service.MaxCrashCountPerHour,
 				RestartDelay:    time.Duration(service.RestartDelaySecs) * time.Second,
@@ -417,7 +421,7 @@ func startServices(ctx *context) {
 				}
 			}
 			if err := svcutil.ExecuteService(ctx.terminate, svcConfig); err != nil {
-				ctx.logger.Printf("ERROR: Service '%s' reported: %v", serviceName, err)
+				ctx.errorLogger.Printf("ERROR: Service '%s' reported: %v", serviceName, err)
 			}
 		}(srv)
 	}
@@ -431,6 +435,7 @@ func createTaskConfig(ctx *context, task config.Task) svcutil.TaskConfig {
 	taskConfig.StartupDelay = time.Duration(task.StartupDelaySecs) * time.Second
 	taskConfig.StartupRandomDelay = time.Duration(task.StartupRandomDelaySecs) * time.Second
 	taskConfig.Logger = ctx.logger
+	taskConfig.ErrorLogger = ctx.errorLogger
 	return taskConfig
 }
 
@@ -445,14 +450,14 @@ func setupScheduledTasks(ctx *context) {
 			taskName := path.Base(taskConfig.Path)
 			ctx.logger.Printf("Running schedule task '%s'", taskName)
 			if exitCode, err := svcutil.ExecuteTask(ctx.terminate, taskConfig); err != nil {
-				ctx.logger.Printf("ERROR: Scheduled task '%s' reported: %v", taskName, err)
+				ctx.errorLogger.Printf("ERROR: Scheduled task '%s' reported: %v", taskName, err)
 			} else {
 				ctx.logger.Printf("The task '%s' finished with exit code %d", taskName, exitCode)
 			}
 		}
 		err := ctx.cronManager.AddFunc(scheduledTask.Schedule, runTask)
 		if err != nil {
-			ctx.logger.Printf("Unable to schedule task '%s': %v", scheduledTask.Path, err)
+			ctx.errorLogger.Printf("ERROR: Unable to schedule task '%s': %v", scheduledTask.Path, err)
 		}
 	}
 	ctx.cronManager.Start()

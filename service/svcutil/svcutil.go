@@ -44,6 +44,7 @@ type TaskConfig struct {
 	ExecTimeout        time.Duration
 	GracefulShutDown   time.Duration
 	Logger             *log.Logger
+	ErrorLogger        *log.Logger
 }
 
 type ScheduleTaskConfig struct {
@@ -57,6 +58,7 @@ type ServiceConfig struct {
 	StartupDelay     time.Duration
 	GracefulShutDown time.Duration
 	Logger           *log.Logger
+	ErrorLogger      *log.Logger
 	CrashConfig      CrashConfig
 	MonitorConfig    MonitorConfig
 }
@@ -85,7 +87,7 @@ func ExecuteTask(terminate chan struct{}, taskConf TaskConfig) (exitCode int, er
 		GracefulShutDown: taskConf.GracefulShutDown,
 		StartupDelay:     startupDelay,
 		Stdout:           &logWriter{prefix: fmt.Sprintf("%s: STDOUT|", taskName), logger: taskConf.Logger},
-		Stderr:           &logWriter{prefix: fmt.Sprintf("%s: STDERR|", taskName), logger: taskConf.Logger},
+		Stderr:           &logWriter{prefix: fmt.Sprintf("%s: STDERR|", taskName), logger: taskConf.ErrorLogger},
 	}
 
 	executable := procmngt.NewExecutable(execConf)
@@ -176,7 +178,7 @@ restartLoop:
 			GracefulShutDown: che.svcConfig.GracefulShutDown,
 			StartupDelay:     che.svcConfig.StartupDelay,
 			Stdout:           &logWriter{prefix: fmt.Sprintf("%s: STDOUT|", che.serviceName), logger: che.svcConfig.Logger},
-			Stderr:           &logWriter{prefix: fmt.Sprintf("%s: STDERR|", che.serviceName), logger: che.svcConfig.Logger},
+			Stderr:           &logWriter{prefix: fmt.Sprintf("%s: STDERR|", che.serviceName), logger: che.svcConfig.ErrorLogger},
 		}
 		executable := procmngt.NewExecutable(execConf)
 		if execConf.StartupDelay > 0 {
@@ -185,7 +187,7 @@ restartLoop:
 			logf(che.svcConfig.Logger, che.serviceName, "Starting service...")
 		}
 		if exitCode, err = executable.Execute(terminate); err != nil {
-			logf(che.svcConfig.Logger, che.serviceName, "Service returned error: %v", err)
+			logf(che.svcConfig.ErrorLogger, che.serviceName, "Service returned error: %v", err)
 		} else {
 			logf(che.svcConfig.Logger, che.serviceName, "Service stopped with exit code %d", exitCode)
 		}
@@ -209,7 +211,7 @@ restartLoop:
 			break restartLoop
 		case <-time.After(restartDelay):
 		}
-		logf(che.svcConfig.Logger, che.serviceName, "Restarting service (crash count: %d)", crashCount)
+		logf(che.svcConfig.ErrorLogger, che.serviceName, "Restarting service (crash count: %d)", crashCount)
 	}
 	return exitCode, err
 }

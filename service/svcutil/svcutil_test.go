@@ -170,6 +170,51 @@ func Test_ExecuteTask_Logger(t *testing.T) {
 	}
 }
 
+func Test_ExecuteTask_ConsoleLogger(t *testing.T) {
+	// Arrange
+	tmpDir, testExe := makeHelloForeverExe(t)
+	defer os.RemoveAll(tmpDir)
+
+	var logBuf bytes.Buffer
+	var errorlogBuf bytes.Buffer
+
+	taskConf := svcutil.TaskConfig{
+		Path:             testExe,
+		ExecTimeout:      2 * time.Second,
+		GracefulShutDown: 1 * time.Second,
+		Logger:           log.New(&logBuf, "", 0),
+		ErrorLogger:      log.New(&errorlogBuf, "", 0),
+	}
+
+	// Act
+	svcutil.ExecuteTask(nil, taskConf)
+
+	// Assert
+	output := logBuf.String()
+	if len(output) == 0 {
+		t.Fatalf("Expected some logging output")
+	}
+
+	if !strings.Contains(output, "STDOUT|Hello World") {
+		t.Errorf("Expected 'STDOUT|Hello World' in logging output: %s", output)
+	}
+	if strings.Contains(output, "STDERR|Sending an error to the world:") {
+		t.Errorf("Did not expect 'STDERR|Sending an error to the world:' in logging output: %s", output)
+	}
+
+	erroroutput := errorlogBuf.String()
+	if len(erroroutput) == 0 {
+		t.Fatalf("Expected some errorlogging output")
+	}
+
+	if !strings.Contains(erroroutput, "STDERR|Sending an error to the world:") {
+		t.Errorf("Expected 'STDERR|Sending an error to the world:' in error logging output: %s", erroroutput)
+	}
+	if strings.Contains(erroroutput, "Hello World") {
+		t.Errorf("Did not expect 'Hello World' in error logging output: %s", erroroutput)
+	}
+}
+
 func Test_ExecuteService_CrashConfig_RestartDelay(t *testing.T) {
 	// Arrange
 	const shutdownIn = 3 * time.Second
