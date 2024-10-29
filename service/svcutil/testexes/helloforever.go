@@ -31,6 +31,8 @@ func main() {
 func sayHelloForever() {
 	for {
 		fmt.Printf("Hello World at %v\n", time.Now())
+		// Print error message to stderr
+		fmt.Fprintf(os.Stderr, "Sending an error to the world: %v\n", "an example error")
 		time.Sleep(1 * time.Second)
 	}
 }

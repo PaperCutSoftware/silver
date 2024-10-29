@@ -9,6 +9,7 @@ package svcutil_test
 
 import (
 	"bytes"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"os"
@@ -167,6 +168,55 @@ func Test_ExecuteTask_Logger(t *testing.T) {
 
 	if !strings.Contains(output, "Hello World") {
 		t.Errorf("Expected 'Hello World' in logging output")
+	}
+}
+
+func Test_ExecuteTask_ConsoleLogger(t *testing.T) {
+	// Arrange
+	tmpDir, testExe := makeHelloForeverExe(t)
+	defer os.RemoveAll(tmpDir)
+
+	var logBuf bytes.Buffer
+	var errorlogBuf bytes.Buffer
+
+	taskConf := svcutil.TaskConfig{
+		Path:             testExe,
+		ExecTimeout:      2 * time.Second,
+		GracefulShutDown: 1 * time.Second,
+		Logger:           log.New(&logBuf, "", 0),
+		ErrorLogger:      log.New(&errorlogBuf, "", 0),
+	}
+
+	// Act
+	svcutil.ExecuteTask(nil, taskConf)
+
+	// Assert
+	output := logBuf.String()
+	if len(output) == 0 {
+		t.Fatalf("Expected some logging output")
+	}
+	fmt.Println("output:")
+	fmt.Println(output)
+
+	if !strings.Contains(output, "STDOUT|Hello World") {
+		t.Errorf("Expected 'STDOUT|Hello World' in logging output")
+	}
+	if strings.Contains(output, "STDERR|Sending an error to the world:") {
+		t.Errorf("Did not expect 'STDERR|Sending an error to the world:' in logging output")
+	}
+
+	erroroutput := errorlogBuf.String()
+	if len(erroroutput) == 0 {
+		t.Fatalf("Expected some errorlogging output")
+	}
+	fmt.Println("erroroutput:")
+	fmt.Println(erroroutput)
+
+	if !strings.Contains(erroroutput, "STDERR|Sending an error to the world:") {
+		t.Errorf("Expected 'STDERR|Sending an error to the world:' in logging output")
+	}
+	if strings.Contains(erroroutput, "Hello World") {
+		t.Errorf("Did not expect 'Hello World' in error logging output")
 	}
 }
 
