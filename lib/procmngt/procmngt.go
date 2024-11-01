@@ -8,6 +8,7 @@
 package procmngt
 
 import (
+	"errors"
 	"io"
 	"os/exec"
 	"sync"
@@ -106,6 +107,16 @@ func (tc timeoutExecutable) Execute(terminate <-chan struct{}) (exitCode int, er
 }
 
 func NewExecutable(execConf ExecConfig) Executable {
+
+	// Go 1.19+ requires "./" for executables in the current directory.
+	// Add "./" to the path for backward compatibility with `Silver` config files
+	// that don't have it for executables in the current directory.
+	// golang issue: https://github.com/golang/go/issues/43724
+	_, err := exec.LookPath(execConf.Path)
+	if errors.Is(err, exec.ErrDot) {
+		execConf.Path = "./" + execConf.Path
+	}
+
 	var e Executable
 	e = executable{
 		cmd:              setupCmd(execConf),
