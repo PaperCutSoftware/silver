@@ -9,7 +9,7 @@
 package main
 
 import (
-	"io/ioutil"
+	"fmt"
 	"net/http"
 	"net/url"
 	"os"
@@ -18,22 +18,23 @@ import (
 
 func setupHTTPProxy() {
 	// Force if set via flag
-	if len(*httpProxy) > 0 {
-		_ = os.Setenv("HTTP_PROXY", *httpProxy)
-		return
+	proxy := *httpProxy
+
+	if proxy == "" {
+		// Else check Silver Environment
+		proxy = os.Getenv("SILVER_HTTP_PROXY")
+		if proxy == "" {
+			// Else check proxy conf file
+			if dat, err := os.ReadFile("http-proxy.conf"); err == nil {
+				proxy = strings.TrimSpace(string(dat))
+			}
+		}
 	}
-	// Check Silver Environment
-	proxy := os.Getenv("SILVER_HTTP_PROXY")
+
 	if proxy != "" {
+		fmt.Printf("Using proxy: %s\n", proxy)
 		_ = os.Setenv("HTTP_PROXY", proxy)
-		return
-	}
-	// Proxy conf file
-	if dat, err := ioutil.ReadFile("http-proxy.conf"); err == nil {
-		proxy = strings.TrimSpace(string(dat))
-	}
-	if proxy != "" {
-		_ = os.Setenv("HTTP_PROXY", proxy)
+		_ = os.Setenv("HTTPS_PROXY", proxy)
 		return
 	}
 }
