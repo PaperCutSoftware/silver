@@ -35,7 +35,6 @@ func setupHTTPProxy() {
 		fmt.Printf("Using proxy: %s\n", proxy)
 		_ = os.Setenv("HTTP_PROXY", proxy)
 		_ = os.Setenv("HTTPS_PROXY", proxy)
-		return
 	}
 }
 
