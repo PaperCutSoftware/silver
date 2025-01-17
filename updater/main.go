@@ -1,7 +1,7 @@
 // SILVER - Service Wrapper
 // Auto Updater
 //
-// Copyright (c) 2014-2021 PaperCut Software http://www.papercut.com/
+// Copyright (c) 2014-2025 PaperCut Software http://www.papercut.com/
 // Use of this source code is governed by an MIT or GPL Version 2 license.
 // See the project's LICENSE file for more information.
 //
@@ -90,7 +90,11 @@ func main() {
 		http.DefaultTransport.(*http.Transport).TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 	}
 
-	setupHTTPProxy()
+	err := setupHTTPProxy(*httpProxy)
+	if err != nil {
+		fmt.Printf("ERROR: Ignoring error setting up proxy: %v\n", err)
+	}
+
 	ok, err := upgradeIfRequired(checkURL)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
