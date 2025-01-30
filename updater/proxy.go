@@ -16,31 +16,6 @@ import (
 	"strings"
 )
 
-// parseProxy parses the proxy String and returns an error if it fails.
-// Copied from net/httpproxy/proxy.go
-func parseProxy(proxy string) (*url.URL, error) {
-	if proxy == "" {
-		return nil, nil
-	}
-
-	proxyURL, err := url.Parse(proxy)
-	if err != nil ||
-		(proxyURL.Scheme != "http" &&
-			proxyURL.Scheme != "https" &&
-			proxyURL.Scheme != "socks5") {
-		// proxy was bogus. Try prepending "http://" to it and
-		// see if that parses correctly. If not, we fall
-		// through and complain about the original one.
-		if proxyURL, err := url.Parse("http://" + proxy); err == nil {
-			return proxyURL, nil
-		}
-	}
-	if err != nil {
-		return nil, fmt.Errorf("invalid proxy address %q: %v", proxy, err)
-	}
-	return proxyURL, nil
-}
-
 // setupHTTPProxy attempts to set the HTTP(S)_PROXY vars using
 // the SILVER_HTTP_PROXY or http-proxy.conf file.
 // Return an error if we attempted and failed to do so or the proxy
@@ -64,16 +39,13 @@ func setupHTTPProxy(httpProxyArg string) error {
 	}
 
 	if proxy != "" {
-		if _, err := parseProxy(proxy); err != nil {
-			return err
-		}
 		if err := os.Setenv("HTTP_PROXY", proxy); err != nil {
 			return err
 		}
 		if err := os.Setenv("HTTPS_PROXY", proxy); err != nil {
 			return err
 		}
-		fmt.Printf("Using proxy: %s\n", proxy)
+		fmt.Printf("Using HTTP/HTTPS proxy: %s\n", proxy)
 	}
 	return nil
 }
