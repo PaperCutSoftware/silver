@@ -18,35 +18,38 @@ import (
 
 // setupHTTPProxy attempts to set the HTTP(S)_PROXY vars using
 // the SILVER_HTTP_PROXY or http-proxy.conf file.
-// Return an error if we attempted and failed to do so or the proxy
-// string was not valid.
-func setupHTTPProxy(httpProxyArg string) error {
-	// Force if set via flag
-	proxy := httpProxyArg
-
-	if proxy == "" {
-		// Else check Silver Environment
-		proxy = os.Getenv("SILVER_HTTP_PROXY")
-		if proxy == "" {
-			// Else check proxy conf file
-			// If conf file is empty of data then there is no proxy set
-			if dat, err := os.ReadFile("http-proxy.conf"); err == nil {
-				proxy = strings.TrimSpace(string(dat))
-			} else {
-				return err
-			}
-		}
-	}
-
+// Return an error if we attempted and failed to do so.
+func setupHTTPProxy(proxy string) error {
+	// the proxy could be from a command line argument
 	if proxy != "" {
-		if err := os.Setenv("HTTP_PROXY", proxy); err != nil {
-			return err
-		}
-		if err := os.Setenv("HTTPS_PROXY", proxy); err != nil {
-			return err
-		}
-		fmt.Printf("Using HTTP/HTTPS proxy: %s\n", proxy)
+		return setProxyEnv(proxy)
 	}
+
+	proxy = os.Getenv("SILVER_HTTP_PROXY")
+	if proxy != "" {
+		return setProxyEnv(proxy)
+	}
+
+	dat, err := os.ReadFile("http-proxy.conf")
+	if err != nil {
+		return err
+	}
+	proxy = strings.TrimSpace(string(dat))
+	if proxy != "" {
+		return setProxyEnv(proxy)
+	}
+
+	return nil
+}
+
+func setProxyEnv(proxy string) error {
+	if err := os.Setenv("HTTP_PROXY", proxy); err != nil {
+		return err
+	}
+	if err := os.Setenv("HTTPS_PROXY", proxy); err != nil {
+		return err
+	}
+	fmt.Printf("Using HTTP/HTTPS proxy: %s\n", proxy)
 	return nil
 }
 
