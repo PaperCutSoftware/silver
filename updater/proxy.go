@@ -1,7 +1,7 @@
 // SILVER - Service Wrapper
 // Auto Updater
 //
-// Copyright (c) 2014-2021 PaperCut Software http://www.papercut.com/
+// Copyright (c) 2014-2025 PaperCut Software http://www.papercut.com/
 // Use of this source code is governed by an MIT or GPL Version 2 license.
 // See the project's LICENSE file for more information.
 //
@@ -9,33 +9,48 @@
 package main
 
 import (
-	"io/ioutil"
+	"fmt"
 	"net/http"
 	"net/url"
 	"os"
 	"strings"
 )
 
-func setupHTTPProxy() {
-	// Force if set via flag
-	if len(*httpProxy) > 0 {
-		_ = os.Setenv("HTTP_PROXY", *httpProxy)
-		return
-	}
-	// Check Silver Environment
-	proxy := os.Getenv("SILVER_HTTP_PROXY")
+// setupHTTPProxy attempts to set the HTTP(S)_PROXY vars using
+// the SILVER_HTTP_PROXY or http-proxy.conf file.
+// Return an error if we attempted and failed to do so.
+func setupHTTPProxy(proxy string) error {
+	// the proxy could be from a command line argument
 	if proxy != "" {
-		_ = os.Setenv("HTTP_PROXY", proxy)
-		return
+		return setProxyEnv(proxy)
 	}
-	// Proxy conf file
-	if dat, err := ioutil.ReadFile("http-proxy.conf"); err == nil {
-		proxy = strings.TrimSpace(string(dat))
-	}
+
+	proxy = os.Getenv("SILVER_HTTP_PROXY")
 	if proxy != "" {
-		_ = os.Setenv("HTTP_PROXY", proxy)
-		return
+		return setProxyEnv(proxy)
 	}
+
+	dat, err := os.ReadFile("http-proxy.conf")
+	if err != nil {
+		return err
+	}
+	proxy = strings.TrimSpace(string(dat))
+	if proxy != "" {
+		return setProxyEnv(proxy)
+	}
+
+	return nil
+}
+
+func setProxyEnv(proxy string) error {
+	if err := os.Setenv("HTTP_PROXY", proxy); err != nil {
+		return err
+	}
+	if err := os.Setenv("HTTPS_PROXY", proxy); err != nil {
+		return err
+	}
+	fmt.Printf("Using HTTP/HTTPS proxy: %s\n", proxy)
+	return nil
 }
 
 func turnOffHTTPProxy() {
