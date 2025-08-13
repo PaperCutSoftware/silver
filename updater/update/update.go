@@ -12,9 +12,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/url"
 	"strings"
+
+	"github.com/papercutsoftware/silver/lib/jsonsig"
 )
 
 type UpgradeInfo struct {
@@ -30,7 +33,7 @@ type Operation struct {
 	Args   []string
 }
 
-func Check(updateURL string, currentVer string) (*UpgradeInfo, error) {
+func Check(updateURL string, currentVer string, publicKey string) (*UpgradeInfo, error) {
 	client := &http.Client{}
 	req, err := http.NewRequest("GET", updateURL+"?version="+url.QueryEscape(currentVer), nil)
 	if err != nil {
@@ -53,9 +56,26 @@ func Check(updateURL string, currentVer string) (*UpgradeInfo, error) {
 		return nil, fmt.Errorf("Got an error from the update url: %d (%s) ", res.StatusCode, res.Status)
 	}
 
-	dec := json.NewDecoder(res.Body)
+	// Read the entire body to allow for signature verification
+	signedPayload, err := ioutil.ReadAll(res.Body)
+	if err != nil {
+		return nil, fmt.Errorf("failed to read update response body: %w", err)
+	}
+
+	// If a public key is provided, verify the signature of the manifest.
+	if publicKey != "" {
+		valid, err := jsonsig.Verify(signedPayload, publicKey)
+		if err != nil {
+			return nil, fmt.Errorf("error verifying update manifest signature: %w", err)
+		}
+		if !valid {
+			return nil, errors.New("update manifest signature is invalid")
+		}
+		fmt.Println("Update manifest signature verified successfully.")
+	}
+
 	var info UpgradeInfo
-	err = dec.Decode(&info)
+	err = json.Unmarshal(signedPayload, &info)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to parse JSON at %s : %v", updateURL, err)
 	}
