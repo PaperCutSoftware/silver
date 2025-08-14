@@ -31,6 +31,17 @@ func GenerateKeys() (string, string, error) {
 // Sign takes a JSON payload and a base64 encoded private key, and returns the
 // signed JSON payload. The signature is added to the JSON payload in a "signature" field.
 func Sign(payload []byte, privateKeyB64 string) ([]byte, error) {
+	// Validate we've got a valid JSON object.
+	var m map[string]interface{}
+	if err := json.Unmarshal(payload, &m); err != nil {
+		return nil, fmt.Errorf("payload must be a JSON object (e.g {...}): %w", err)
+	}
+
+	// Check if the payload does NOT have a signature.
+	if _, ok := m["signature"]; ok {
+		return nil, fmt.Errorf("payload already contains a 'signature' field; maybe it is already signed")
+	}
+
 	// Canonicalize the payload that we will sign.
 	canonicalPayload, err := jcs.Transform(payload)
 	if err != nil {
@@ -58,14 +69,7 @@ func Sign(payload []byte, privateKeyB64 string) ([]byte, error) {
 		return nil, err
 	}
 
-	// Now, we need to add the signature to the original payload.
-	// For that we need to unmarshal it into a map.
-	var m map[string]interface{}
-	if err := json.Unmarshal(payload, &m); err != nil {
-		// This should not happen as we are passing the original payload
-		return nil, fmt.Errorf("payload must be a JSON object: %w", err)
-	}
-
+	// Now, we add the signature to the map.
 	m["signature"] = compact
 
 	return json.MarshalIndent(m, "", "    ")

@@ -92,3 +92,20 @@ func TestVerificationFailureWithTamperedPayload(t *testing.T) {
 		t.Error("Signature should be invalid, but it was considered valid.")
 	}
 }
+
+func TestSignFailureWithExistingSignature(t *testing.T) {
+	// Generate a new key pair for testing.
+	_, privateKey, err := GenerateKeys()
+	if err != nil {
+		t.Fatalf("Failed to generate keys: %v", err)
+	}
+
+	// Create a sample JSON payload that already has a signature field.
+	payload := []byte(`{"foo": "bar", "signature": "dummy"}`)
+
+	// Try to sign the payload.
+	_, err = Sign(payload, privateKey)
+	if err == nil {
+		t.Error("Signing should have failed because a signature field already exists, but it did not.")
+	}
+}
