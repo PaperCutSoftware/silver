@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 
 	"github.com/papercutsoftware/silver/lib/jsonsig"
@@ -60,7 +60,7 @@ func generateCmd() {
 	}
 
 	if *publicKeyFile != "" {
-		if err := ioutil.WriteFile(*publicKeyFile, []byte(publicKey), 0644); err != nil {
+		if err := os.WriteFile(*publicKeyFile, []byte(publicKey), 0644); err != nil {
 			fmt.Fprintf(os.Stderr, "Error writing public key to file: %v\n", err)
 			os.Exit(1)
 		}
@@ -71,7 +71,7 @@ func generateCmd() {
 	}
 
 	if *privateKeyFile != "" {
-		if err := ioutil.WriteFile(*privateKeyFile, []byte(privateKey), 0600); err != nil {
+		if err := os.WriteFile(*privateKeyFile, []byte(privateKey), 0600); err != nil {
 			fmt.Fprintf(os.Stderr, "Error writing private key to file: %v\n", err)
 			os.Exit(1)
 		}
@@ -95,7 +95,7 @@ func signCmd() {
 		os.Exit(1)
 	}
 
-	privateKeyBytes, err := ioutil.ReadFile(*privateKeyFile)
+	privateKeyBytes, err := os.ReadFile(*privateKeyFile)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error reading private key: %v\n", err)
 		os.Exit(1)
@@ -103,13 +103,13 @@ func signCmd() {
 
 	var inputBytes []byte
 	if *inputFile != "" {
-		inputBytes, err = ioutil.ReadFile(*inputFile)
+		inputBytes, err = os.ReadFile(*inputFile)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error reading input file: %v\n", err)
 			os.Exit(1)
 		}
 	} else {
-		inputBytes, err = ioutil.ReadAll(os.Stdin)
+		inputBytes, err = io.ReadAll(os.Stdin)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error reading from stdin: %v\n", err)
 			os.Exit(1)
@@ -123,7 +123,7 @@ func signCmd() {
 	}
 
 	if *outputFile != "" {
-		if err := ioutil.WriteFile(*outputFile, signedPayload, 0644); err != nil {
+		if err := os.WriteFile(*outputFile, signedPayload, 0644); err != nil {
 			fmt.Fprintf(os.Stderr, "Error writing output file: %v\n", err)
 			os.Exit(1)
 		}
@@ -145,7 +145,7 @@ func verifyCmd() {
 		os.Exit(1)
 	}
 
-	publicKeyBytes, err := ioutil.ReadFile(*publicKeyFile)
+	publicKeyBytes, err := os.ReadFile(*publicKeyFile)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "Error reading public key: %v\n", err)
 		os.Exit(1)
@@ -153,13 +153,13 @@ func verifyCmd() {
 
 	var inputBytes []byte
 	if *inputFile != "" {
-		inputBytes, err = ioutil.ReadFile(*inputFile)
+		inputBytes, err = os.ReadFile(*inputFile)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error reading input file: %v\n", err)
 			os.Exit(1)
 		}
 	} else {
-		inputBytes, err = ioutil.ReadAll(os.Stdin)
+		inputBytes, err = io.ReadAll(os.Stdin)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Error reading from stdin: %v\n", err)
 			os.Exit(1)

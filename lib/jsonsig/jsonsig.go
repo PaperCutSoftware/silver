@@ -1,5 +1,5 @@
 // Package jsonsig provides a simple way to sign and verify JSON payloads using
-// Ed25519 signatures. The signature is attached to the JSON payload (most be
+// Ed25519 signatures. The signature is attached to the JSON payload (must be
 // a JSON object) in a "signature" field.
 package jsonsig
 
@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/go-jose/go-jose/v4"
 	"github.com/gowebpki/jcs"
 )
 
@@ -53,24 +52,11 @@ func Sign(payload []byte, privateKeyB64 string) ([]byte, error) {
 		return nil, err
 	}
 
-	signer, err := jose.NewSigner(jose.SigningKey{Algorithm: jose.EdDSA, Key: ed25519.PrivateKey(privateKey)}, (&jose.SignerOptions{}).WithHeader("kid", "silver-service-key-v1"))
-	if err != nil {
-		return nil, err
-	}
-
-	jws, err := signer.Sign(canonicalPayload)
-	if err != nil {
-		return nil, err
-	}
-
-	// Get the detached compact serialization, which is the signature.
-	compact, err := jws.DetachedCompactSerialize()
-	if err != nil {
-		return nil, err
-	}
+	signature := ed25519.Sign(privateKey, canonicalPayload)
+	signatureB64 := base64.StdEncoding.EncodeToString(signature)
 
 	// Now, we add the signature to the map.
-	m["signature"] = compact
+	m["signature"] = signatureB64
 
 	return json.MarshalIndent(m, "", "    ")
 }
@@ -88,9 +74,14 @@ func Verify(signedPayload []byte, publicKeyB64 string) (bool, error) {
 		return false, fmt.Errorf("payload must be a JSON object: %w", err)
 	}
 
-	compact, ok := m["signature"].(string)
+	signatureB64, ok := m["signature"].(string)
 	if !ok {
 		return false, fmt.Errorf("invalid signature format: 'signature' field missing or not a string")
+	}
+
+	signature, err := base64.StdEncoding.DecodeString(signatureB64)
+	if err != nil {
+		return false, fmt.Errorf("failed to decode base64 signature: %w", err)
 	}
 
 	delete(m, "signature")
@@ -108,14 +99,8 @@ func Verify(signedPayload []byte, publicKeyB64 string) (bool, error) {
 		return false, fmt.Errorf("failed to canonicalize payload for verification: %w", err)
 	}
 
-	object, err := jose.ParseDetached(compact, canonicalPayload, []jose.SignatureAlgorithm{jose.EdDSA})
-	if err != nil {
-		return false, fmt.Errorf("failed to parse detached signature: %w", err)
-	}
-
-	_, err = object.Verify(ed25519.PublicKey(publicKey))
-	if err != nil {
-		return false, fmt.Errorf("signature verification failed: %w", err)
+	if !ed25519.Verify(publicKey, canonicalPayload, signature) {
+		return false, fmt.Errorf("signature verification failed")
 	}
 
 	return true, nil
