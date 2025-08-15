@@ -71,7 +71,6 @@ func Check(updateURL string, currentVer string, publicKey string) (*UpgradeInfo,
 		if !valid {
 			return nil, errors.New("update manifest signature is invalid")
 		}
-		fmt.Println("Update manifest signature verified successfully.")
 	}
 
 	var info UpgradeInfo
