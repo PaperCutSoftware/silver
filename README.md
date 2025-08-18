@@ -254,20 +254,19 @@ This process ensures that a new version is only activated once it's fully on dis
 4. **Activate with an Atomic Move**: A key operation is an atomic `move`, which renames the temporary directory to its final versioned name, like `v2025-08-15`. This is a single, near-instantaneous filesystem operation that makes the new version "live".
 
 ```
-{
-  "Action": "move",
-  "Args": ["temp-v*", "v2025-08-15"]
-}
+  {
+    "Action": "move",
+    "Args": ["temp-v*", "v2025-08-15"]
+  }
 ```
 
 5. **Auto-Select on Restart**: Silver's main configuration file should point to your application binary using a glob pattern (a wildcard). When the service restarts, this glob pattern will automatically select the executable from the latest versioned directory, because `v2025-08-15` sorts lexically after `v2025-07-22`.
-
 ```
-"Services": [
-  {
-    "Path": "${ServiceRoot}/v*/my-app-server.exe"
-  }
-]
+  "Services": [
+    {
+      "Path": "${ServiceRoot}/v*/my-app-server.exe"
+    }
+  ]
 ```
 
    
@@ -312,7 +311,7 @@ C:\Program Files\My App\
 * **Cleaning Up Old Versions**: To prevent disk space from growing indefinitely, you should periodically clean up old version directories. This can be done with a `remove` operation in your update manifest. For complex logic (e.g., "remove all but the last 3 versions"), it's most reliable to use an `exec` operation that calls a small cleanup script/program.
 
 ```
-// Example: remove all versions from 2024
+// Example: remove all versions from 2024
 {
   "Action": "remove",
   "Args": ["v2024-*"]
@@ -349,30 +348,27 @@ By using the `Include` directive in `my-app.conf` to load the `*.conf` files fro
 While delivering manifests over a secure HTTPS connection is a fundamental first step, Silver also supports **end-to-end security via signed manifests**. This protects against a compromised server by ensuring the update payload is authentic and can even secure updates in non-HTTPS environments. For this purpose, Silver includes a command-line utility, `jsonsig`, for this purpose. It uses an Ed25519 public/private key pair.
 
 1. **Generate a key pair:**  
-   Bash
-
 ```
-# This creates priv.key (keep it secret!) and pub.key (distribute with your app)
-jsonsig generate --private-key=priv.key --public-key=pub.key
+  # This creates priv.key (keep it secret!) and pub.key (distribute with your app)
+  jsonsig generate --private-key=priv.key --public-key=pub.key
 ```
 
 2. **Sign your manifest:**  
-   Bash
-
 ```
-# This adds the "signature" field to your manifest
-jsonsig sign --private-key=priv.key --input=manifest.json --output=signed-manifest.json
+  # This adds the "signature" field to your manifest
+  jsonsig sign --private-key=priv.key --input=manifest.json --output=signed-manifest.json
 ```
 
 3. **Configure the updater:** In your `service.conf`, provide the base64-encoded public key to the `updater` via the `--public-key` flag. The updater will refuse any unsigned or invalid manifest.  For example, your updater task in `service.conf` would look like this:
-
-       `{`  
-            `"Schedule": "0 0 13 * * *",`  
-            `"Path": "${ServiceRoot}/updater.exe",`  
-            `"Args": ["https://updates.example.com/mycoolapp/version-manifest.json", "--public-key=m7kb8SVfRMFcCVqm18/c+lMd5TS2btIpEhGCZa5VgrI="],`  
-            `"StartupRandomDelaySecs": 3600,`  
-            `"TimeoutSecs": 3600`  
-        `}`
+```
+   {  
+      "Schedule": "0 0 13 * * *",  
+      "Path": "${ServiceRoot}/updater.exe",  
+      "Args": ["https://updates.example.com/mycoolapp/version-manifest.json", "--public-key=m7kb8SVfRMFcCVqm18/c+lMd5TS2btIpEhGCZa5VgrI="], 
+      "StartupRandomDelaySecs": 3600, 
+      "TimeoutSecs": 3600 
+   }
+```
 
 ---
 
