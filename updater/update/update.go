@@ -12,7 +12,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"net/url"
 	"strings"
@@ -56,15 +56,15 @@ func Check(updateURL string, currentVer string, publicKey string) (*UpgradeInfo,
 		return nil, fmt.Errorf("Got an error from the update url: %d (%s) ", res.StatusCode, res.Status)
 	}
 
-	// Read the entire body to allow for signature verification
-	signedPayload, err := ioutil.ReadAll(res.Body)
+	// Limit the read to 1MB to prevent unbounded memory usage from a malicious server.
+	rawPayload, err := io.ReadAll(io.LimitReader(res.Body, 1*1024*1024))
 	if err != nil {
 		return nil, fmt.Errorf("failed to read update response body: %w", err)
 	}
 
 	// If a public key is provided, verify the signature of the manifest.
 	if publicKey != "" {
-		valid, err := jsonsig.Verify(signedPayload, publicKey)
+		valid, err := jsonsig.Verify(rawPayload, publicKey)
 		if err != nil {
 			return nil, fmt.Errorf("error verifying update manifest signature: %w", err)
 		}
@@ -74,7 +74,7 @@ func Check(updateURL string, currentVer string, publicKey string) (*UpgradeInfo,
 	}
 
 	var info UpgradeInfo
-	err = json.Unmarshal(signedPayload, &info)
+	err = json.Unmarshal(rawPayload, &info)
 	if err != nil {
 		return nil, fmt.Errorf("Unable to parse JSON at %s : %v", updateURL, err)
 	}
