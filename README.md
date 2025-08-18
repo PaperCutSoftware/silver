@@ -118,8 +118,8 @@ Note: While the example below uses comments for explanation, standard JSON does 
             }
         },
         {
-              // Another service started with the latest installed version selected using a Glob pattern.
-"Path": "${ServiceRoot}/v*/my-versioned-microservice.exe",
+            // Another service started with the latest installed version selected using a Glob pattern.
+            "Path": "${ServiceRoot}/v*/my-versioned-microservice.exe",
         }
     ],
 
@@ -334,12 +334,10 @@ C:\Program Files\My App\
 │   ├── v00005/
 │   │   ├── component1-server.exe
 │   │   └── component1-silver-include.conf  <-- Config for this component
-│   └── updater-c1.exe  <-- A dedicated updater for component 1
 └── component2/
     ├── v00029/
     │   ├── component2-server.exe
     │   └── component2-silver-include.conf
-    └── updater-c2.exe
 ```
 
 By using the `Include` directive in `my-app.conf` to load the `*.conf` files from the components' versioned directories, you allow each component team to manage their own service definitions, scheduled tasks, and other configurations. This configuration is then deployed atomically with their binaries, providing excellent isolation and team autonomy.
