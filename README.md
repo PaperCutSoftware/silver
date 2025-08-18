@@ -361,13 +361,13 @@ While delivering manifests over a secure HTTPS connection is a fundamental first
 
 3. **Configure the updater:** In your `service.conf`, provide the base64-encoded public key to the `updater` via the `--public-key` flag. The updater will refuse any unsigned or invalid manifest.  For example, your updater task in `service.conf` would look like this:
 ```
-   {  
-      "Schedule": "0 0 13 * * *",  
-      "Path": "${ServiceRoot}/updater.exe",  
-      "Args": ["https://updates.example.com/mycoolapp/version-manifest.json", "--public-key=m7kb8SVfRMFcCVqm18/c+lMd5TS2btIpEhGCZa5VgrI="], 
-      "StartupRandomDelaySecs": 3600, 
-      "TimeoutSecs": 3600 
-   }
+  {  
+     "Schedule": "0 0 13 * * *",  
+     "Path": "${ServiceRoot}/updater.exe",  
+     "Args": ["https://updates.example.com/mycoolapp/version-manifest.json", "--public-key=m7kb8SVfRMFcCVqm18/c+lMd5TS2btIpEhGCZa5VgrI="], 
+     "StartupRandomDelaySecs": 3600, 
+     "TimeoutSecs": 3600 
+  }
 ```
 
 ---
@@ -397,15 +397,11 @@ While delivering manifests over a secure HTTPS connection is a fundamental first
 
 To build the `service` and `updater` binaries:
 
-Bash
-
 ```
 go run make.go
 ```
 
 The compiled binaries will be placed in the `build/<os>/` directory. The build script supports cross-compilation via the `-goos` and `-goarch` flags.
-
-Bash
 
 ```
 # Example: build for 64-bit Windows
@@ -421,6 +417,8 @@ Silver takes a **conservative approach** to its Go version. This policy is desig
 The project currently targets **Go 1.20**.
 
 ## **Licence**
+
+Copyright © 2014-2025 PaperCut Software.
 
 This project is licensed under the MIT Licence. See the `LICENSE` file for details.
 
