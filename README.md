@@ -47,7 +47,8 @@ Silver consists of two primary binaries that you build and deploy alongside your
 1. `service`: The main service wrapper. It reads its configuration, manages your application's lifecycle, monitors its health, and runs tasks.  
 2. `updater`: A standalone utility that handles the auto-update process. It's typically invoked as a `ScheduledTasks` or `StartupTask` by the `service` binary.
 
-All configuration is defined in a JSON file, typically named `<service-name>.conf`, which lives in the same directory as the `service` executable.
+
+All configuration is defined in a JSON file that lives alongside the `service` executable. It's conventional to rename the `service` binary to match your application (e.g., `my-app.exe`) and name the configuration file accordingly (e.g., `my-app.conf`).
 
 ---
 
