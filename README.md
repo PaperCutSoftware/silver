@@ -334,10 +334,11 @@ C:\Program Files\My App\
 │   ├── v00005/
 │   │   ├── component1-server.exe
 │   │   └── component1-silver-include.conf  <-- Config for this component
+    └── data-c1/
 └── component2/
-    ├── v00029/
-    │   ├── component2-server.exe
-    │   └── component2-silver-include.conf
+    └── v00029/
+        ├── component2-server.exe
+        └── component2-silver-include.conf
 ```
 
 By using the `Include` directive in `my-app.conf` to load the `*.conf` files from the components' versioned directories, you allow each component team to manage their own service definitions, scheduled tasks, and other configurations. This configuration is then deployed atomically with their binaries, providing excellent isolation and team autonomy.
