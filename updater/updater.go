@@ -24,9 +24,9 @@ import (
 	"github.com/papercutsoftware/silver/updater/update"
 )
 
-func upgradeIfRequired(checkURL string) (upgraded bool, err error) {
+func upgradeIfRequired(checkURL, publicKey string) (upgraded bool, err error) {
 	// Check update URL
-	upgradeInfo, err := checkUpdate(detectCurrentVersion(), checkURL)
+	upgradeInfo, err := checkUpdate(detectCurrentVersion(), checkURL, publicKey)
 	if err != nil {
 		return false, err
 	}
@@ -101,15 +101,15 @@ func fileSize(file string) (size int64, err error) {
 	return fi.Size(), nil
 }
 
-func checkUpdate(currentVer, checkURL string) (*update.UpgradeInfo, error) {
-	upgradeInfo, err := update.Check(checkURL, currentVer)
+func checkUpdate(currentVer, checkURL, publicKey string) (*update.UpgradeInfo, error) {
+	upgradeInfo, err := update.Check(checkURL, currentVer, publicKey)
 	if err != nil {
 		// If we've got a proxy, have one more go with it off.
 		if proxy := os.Getenv("HTTP_PROXY"); proxy != "" {
 			fmt.Printf("Update check using proxy '%s' failed. Trying again without ...\n", proxy)
 			turnOffHTTPProxy()
 		}
-		upgradeInfo, err = update.Check(checkURL, currentVer)
+		upgradeInfo, err = update.Check(checkURL, currentVer, publicKey)
 	}
 	return upgradeInfo, err
 }

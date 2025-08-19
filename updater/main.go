@@ -27,6 +27,7 @@ var (
 	overrideVersion = flag.String("c", "", "Override current installed version")
 	httpProxy       = flag.String("p", "", "Set HTTP proxy in format http://server:port")
 	allowHTTP       = flag.Bool("http", false, "Debug only: Support non-https for update checking")
+	publicKey       = flag.String("public-key", "", "(Optional) Base64 encoded Ed25519 public key for update manifest verification.")
 	allowInsecure   = flag.Bool("insecure", false, "Support insecure & self-signed certificates for update checking")
 )
 
@@ -34,6 +35,9 @@ func usage() {
 	exeName := filepath.Base(os.Args[0])
 	_, _ = fmt.Fprintf(os.Stdout, "usage: %s [flags] [update url]\n", exeName)
 	flag.PrintDefaults()
+	_, _ = fmt.Fprintf(os.Stdout, "\nNote on manifest signing with --public-key:\n")
+	_, _ = fmt.Fprintf(os.Stdout, "  The public key is used by the client to verify the update manifest signature.\n")
+	_, _ = fmt.Fprintf(os.Stdout, "  The manifest is signed on the server with the corresponding private key.\n\n")
 	_, _ = fmt.Fprintf(os.Stdout, "To generate or modify profile\n")
 	_, _ = fmt.Fprintf(os.Stdout, "  profile-set-random-id\n")
 	_, _ = fmt.Fprintf(os.Stdout, "\tGenerate a unique random id for this installation.\n")
@@ -95,7 +99,7 @@ func main() {
 		fmt.Printf("ERROR: Ignoring error setting up proxy: %v\n", err)
 	}
 
-	ok, err := upgradeIfRequired(checkURL)
+	ok, err := upgradeIfRequired(checkURL, *publicKey)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
 		os.Exit(1)

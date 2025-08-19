@@ -93,6 +93,7 @@ func buildAll() {
 	fmt.Printf("Building binaries for %s/%s ...\n", goos, goarch)
 	_ = runCmd("go", "build", "-ldflags", "-s -w", "-o", makeOutputPath(buildOutputDir, "updater"), rootNamespace+"/updater")
 	_ = runCmd("go", "build", "-ldflags", "-s -w", "-o", makeOutputPath(buildOutputDir, "service"), rootNamespace+"/service")
+	_ = runCmd("go", "build", "-ldflags", "", "-o", makeOutputPath(buildOutputDir, "jsonsig"), rootNamespace+"/lib/jsonsig/cmd")
 	_ = runCmd("go", "build", "-tags", "nohttp", "-ldflags", "-s -w", "-o", makeOutputPath(buildOutputDir, "service-no-http"), rootNamespace+"/service")
 	if goos == "windows" {
 		_ = runCmd("go", "build", "-tags", "nohttp", "-ldflags", "-s -w  -H=windowsgui", "-o", makeOutputPath(buildOutputDir, "service-no-window"), rootNamespace+"/service")
