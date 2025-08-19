@@ -2,21 +2,30 @@
 
 # **Silver**
 
-- *Only the best is dished up with Silver Service*
+>***Only the best is dished up with Silver Service***
 
 Silver is a robust, light-weight, cross-platform **service wrapper** for background applications. 
 
-Silver takes a standard command-line program \- like a simple HTTP-based app or other background process \- and turns it into a resilient, auto-updating background service.  It's 100% cross platform and works across Windows, macOS, and Linux. It's designed to handle the operational realities of running software, like crashes, health monitoring, logging, cron-like scheduling and updates, so you can focus on your application's core logic.
-
-Typical usages might include wrapping a single Java web application, hosting a set of Go microservices, or resiliently running a native "task tray" application on startup.
+Silver takes a standard command-line program — like a simple HTTP-based app or other background process — and turns it into a resilient, auto-updating background service.  It's designed to handle the operational realities of running software, so you can focus on your application's core logic instead. Things handled by Silver include:
+ * crash recovery
+ * health monitoring
+ * logging
+ * cron-like task scheduling
+ * auto-updates
+ * and work the same way across Windows, macOS, and Linux.
 
 Silver is battle-tested and has been successfully used by [PaperCut Software](https://www.papercut.com/) to help manage server and desktop components for millions of laptops and servers for almost a decade.
+
+Typical usages might include:
+* wrapping a single Java web application
+* hosting a set of Go microservices
+* or resiliently running a native "task tray" application on startup. 
 
 ---
 
 ## **Features**
 
-Silver is packed with features to make your application robust and easy to manage in production environments.
+Silver is packed with features to make your application more robust and easy to manage in production environments.
 
 * **Cross-Platform Service Management**: Runs your app as a native service (Windows Service, macOS LaunchAgent, Linux systemd/init) using a single, consistent interface.  
 * **Process Resilience**: Automatically restarts your application services if they crash, with configurable limits (`MaxCrashCountPerHour`) and restart delays (`RestartDelaySecs`) to prevent rapid-restart CPU cycles.  
@@ -24,15 +33,15 @@ Silver is packed with features to make your application robust and easy to manag
 * **Secure Auto-Updates**: A built-in `updater` binary fetches updates from a URL, supporting:  
   * Cryptographically signed update manifests (Ed25519) for security.  
   * Update package checksum validation (SHA256/SHA1).  
-  * Post-update file operations (copy, move, exec, etc.).  
-  * Post-install checks and operations to ensure an install is valid before the final atomic "move" to live.  
+  * Post-upgrade file operations (copy, move, exec, etc.).  
+  * Post-upgrade checks and operations to ensure an upgrade is valid before the final atomic "move" to live.  
   * Update channels (e.g., `stable`, `beta`) for phased rollouts.  
-* **Flexible Task Execution**:  
+* **Flexible Task Execution** Including:  
   * **Startup Tasks**: Run one-off tasks when the service starts, either synchronously or asynchronously.  
   * **Scheduled Tasks**: Run recurring tasks using powerful cron syntax.  
   * **Ad-Hoc Commands**: Expose custom command-line commands in a consistent way that can be triggered from the command line.  
 * **Simple Configuration**: All behaviour is controlled by a single, comprehensive JSON configuration file.  
-* **Logging**:  Built-in centralised logging for both Silver and your application's output.  Log buffing, flushing and rotation is automatically handled.  
+* **Logging**:  Built-in centralised logging (think syslog-like) for both Silver and your application's output.  Log buffing, flushing and rotation is automatically handled.  
 * **System Integration**:  
   * Automatic service installation using native OS hooks.  
   * Automatic discovery of OS system's HTTP proxy settings.  
@@ -56,7 +65,7 @@ All configuration is defined in a JSON file that lives alongside the `service` e
 
 The configuration file is the heart of Silver. Here is a comprehensive example with comments explaining each section.  
 
-Note: While the example below uses comments for explanation, standard JSON does not support comments. They **must** be removed before use.
+**Important**: While the example below uses comments for explanation, standard JSON does not support comments. They **must** be removed before use.
 
 ```
 {
@@ -174,7 +183,7 @@ Note: While the example below uses comments for explanation, standard JSON does 
 
 * **Variable Substitution**: `${ServiceName}` and `${ServiceRoot}` are automatically replaced with the service's name and its root directory.  
 * **Paths**: All relative paths are based at the service root.  
-* **File Globbing**:  If a path contains a glob pattern (e.g. \*) and matches multiple files, the lexical highest file match is always used.  This powerful mechanism can be used to support version selection (See Recommend Versioning Strategy)  
+* **File Globbing**:  If a path contains a glob pattern (e.g. \*) and matches multiple files, the lexical highest file match is always used.  This powerful mechanism can be used to support version selection (See A *Robust Upgrade Strategy*)  
 * **Cron Syntax:** Scheduled tasks use a standard 6-field cron syntax (including seconds), which provides fine-grained scheduling control.  
 * **MonitorPing URLs**: The `URL` for monitoring supports multiple schemes:  
   * `http(s)://...`: Checks for a `200 OK` status.  
@@ -201,11 +210,11 @@ The `updater` binary provides a powerful and secure way to keep your application
 6. It extracts the package contents into the service root.  
 7. It executes any post-update `Operations` defined in the manifest.  
 8. It writes the new version number to the `.version` file.  
-9. Finally, it creates a `.reload` file, signalling the main `service` to perform a graceful restart and load the new version.
+9. Finally, it creates a `.reload` file, signalling the main `service` to perform a graceful restart (e.g. SIGTERM) and load the new version.
 
 ### **The Update Manifest**
 
-The server should return a JSON manifest like this. If you are using signed manifests, the `jsonsig` tool will add the `signature` field automatically (See Signing Manifests).
+The server should return a JSON manifest like this. If you are using signed manifests, the `jsonsig` tool will add the `signature` field automatically (Refer to the *Security: Signing Manifests* section below for more details).
 
 ```
 {
@@ -245,9 +254,9 @@ Overwriting files in-place during an upgrade is risky. A partial update caused b
 
 Silver is designed to support a much more robust, atomic upgrade strategy that leverages versioned directories, path globbing, and a final atomic `move` operation.
 
-### **The Atomic Upgrade Process**
+### **The Atomic Upgrade Flow**
 
-This process ensures that a new version is only activated once it's fully on disk and validated, making your upgrades safe and reliable.
+This flow ensures that a new version is only activated once it's fully on disk and validated, making your upgrades safe and reliable.
 
 1. **Package Correctly**: In your build process, package all new release files inside a uniquely named root directory within your zip file. A good practice is to prefix it with `temp-`, for example: `temp-v2025-08-15`.  
 2. **Download and Extract**: The `updater` downloads and extracts the zip file. This creates the `temp-v2025-08-15/` directory on disk, containing the full new version of your application.  
@@ -274,7 +283,7 @@ This process ensures that a new version is only activated once it's fully on dis
 
 ### **Version Directory Naming**
 
-For this strategy to work, the directory names for new versions **must sort lexically after older versions**. Here are three recommended conventions:
+For the robust update flow to work, the directory names for new versions **must sort lexically after older versions**. Here are three recommended conventions:
 
 * **Reverse ISO Date**: A timestamp from the time of the release. This is simple and guarantees correct ordering.  
   * e.g. `v2025-08-15, or v2025-08-15-094500`  
@@ -305,7 +314,7 @@ C:\Program Files\My App\
 
 ---
 
-### **Best Practices**
+### **Update Best Practices**
 
 * **Randomize Update Checks:** Use `StartupRandomDelaySecs` on scheduled tasks to prevent overwhelming your server with simultaneous requests (the "thundering herd" problem). Adding a random delay, say by 1 hour, spreads out tasks like update checks, reducing peak load.  
 * **Pre-flight Checks**: Before the final atomic `move`, you can run a validation step. Add an `exec` operation that runs a test command in your new binary (e.g., `my-app-server.exe --test`). If the command fails (returns a non-zero exit code), the entire upgrade process will abort, preventing a broken version from being activated.  
@@ -334,7 +343,7 @@ C:\Program Files\My App\
 │   ├── v00005/
 │   │   ├── component1-server.exe
 │   │   └── component1-silver-include.conf  <-- Config for this component
-    └── data-c1/
+│   └── data-c1/
 └── component2/
     └── v00029/
         ├── component2-server.exe
