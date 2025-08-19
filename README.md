@@ -32,7 +32,7 @@ Silver is packed with features to make your application more robust and easy to 
 * **Health Monitoring**: Actively monitors your application service's health via HTTP(S) pings, TCP connection checks, TCP echo checks, or by watching for file changes. It automatically detects crashes, live-lock and dead-lock situations, and restarts the service on failure.  
 * **Secure Auto-Updates**: A built-in `updater` binary fetches updates from a URL, supporting:  
   * Cryptographically signed update manifests (Ed25519) for security.  
-  * Update package checksum validation (SHA256/SHA1).  
+  * Update package checksum validation (SHA256).  
   * Post-upgrade file operations (copy, move, exec, etc.).  
   * Post-upgrade checks and operations to ensure an upgrade is valid before the final atomic "move" to live.  
   * Update channels (e.g., `stable`, `beta`) for phased rollouts.  
