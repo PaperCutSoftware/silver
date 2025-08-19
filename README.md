@@ -12,7 +12,7 @@ Silver takes a standard command-line program — like a simple HTTP-based app or
  * logging
  * cron-like task scheduling
  * auto-updates
- * and work the same way across Windows, macOS, and Linux.
+ * and works the same way across Windows, macOS, and Linux.
 
 Silver is battle-tested and has been successfully used by [PaperCut Software](https://www.papercut.com/) to help manage server and desktop components for millions of laptops and servers for almost a decade.
 
