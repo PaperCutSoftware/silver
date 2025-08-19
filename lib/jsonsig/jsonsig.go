@@ -1,3 +1,11 @@
+// SILVER - Service Wrapper
+// Auto Updater
+//
+// Copyright (c) 2014-2025 PaperCut Software http://www.papercut.com/
+// Use of this source code is governed by an MIT or GPL Version 2 license.
+// See the project's LICENSE file for more information.
+//
+
 // Package jsonsig provides a simple way to sign and verify JSON payloads using
 // Ed25519 signatures. The signature is attached to the JSON payload (must be
 // a JSON object) in a "signature" field.

@@ -1,3 +1,11 @@
+// SILVER - Service Wrapper
+// Auto Updater
+//
+// Copyright (c) 2014-2025 PaperCut Software http://www.papercut.com/
+// Use of this source code is governed by an MIT or GPL Version 2 license.
+// See the project's LICENSE file for more information.
+//
+
 package main
 
 import (
@@ -9,22 +17,33 @@ import (
 	"github.com/papercutsoftware/silver/lib/jsonsig"
 )
 
+const (
+	ExitSuccess = 0
+	ExitError   = 1
+)
+
 func main() {
 	if len(os.Args) < 2 {
 		printUsage()
-		os.Exit(1)
+		os.Exit(ExitError)
 	}
 
+	var err error
 	switch os.Args[1] {
 	case "generate":
-		generateCmd()
+		err = generateCmd()
 	case "sign":
-		signCmd()
+		err = signCmd()
 	case "verify":
-		verifyCmd()
+		err = verifyCmd()
 	default:
 		printUsage()
-		os.Exit(1)
+		os.Exit(ExitError)
+	}
+
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+		os.Exit(ExitError)
 	}
 }
 
@@ -46,23 +65,23 @@ func printUsage() {
 	fmt.Println("      --input=<file>         File to read the signed JSON document from. (default: stdin)")
 }
 
-func generateCmd() {
-	generateCmd := flag.NewFlagSet("generate", flag.ExitOnError)
+func generateCmd() error {
+	generateCmd := flag.NewFlagSet("generate", flag.ContinueOnError)
 	publicKeyFile := generateCmd.String("public-key", "", "The file to save the public key to.")
 	privateKeyFile := generateCmd.String("private-key", "", "The file to save the private key to.")
 
-	generateCmd.Parse(os.Args[2:])
+	if err := generateCmd.Parse(os.Args[2:]); err != nil {
+		return err
+	}
 
 	publicKey, privateKey, err := jsonsig.GenerateKeys()
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error generating keys: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("generating keys: %w", err)
 	}
 
 	if *publicKeyFile != "" {
 		if err := os.WriteFile(*publicKeyFile, []byte(publicKey), 0644); err != nil {
-			fmt.Fprintf(os.Stderr, "Error writing public key to file: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("writing public key to file: %w", err)
 		}
 	} else {
 		fmt.Println("Public Key:")
@@ -72,111 +91,100 @@ func generateCmd() {
 
 	if *privateKeyFile != "" {
 		if err := os.WriteFile(*privateKeyFile, []byte(privateKey), 0600); err != nil {
-			fmt.Fprintf(os.Stderr, "Error writing private key to file: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("writing private key to file: %w", err)
 		}
 	} else {
 		fmt.Println("Private Key:")
 		fmt.Println(privateKey)
 	}
+	return nil
 }
 
-func signCmd() {
-	signCmd := flag.NewFlagSet("sign", flag.ExitOnError)
+func signCmd() error {
+	signCmd := flag.NewFlagSet("sign", flag.ContinueOnError)
 	privateKeyFile := signCmd.String("private-key", "", "The file containing the private key.")
 	inputFile := signCmd.String("input", "", "The file to read the JSON document from. If not specified, reads from standard input.")
 	outputFile := signCmd.String("output", "", "The file to write the signed JSON document to. If not specified, writes to standard output.")
 
-	signCmd.Parse(os.Args[2:])
+	if err := signCmd.Parse(os.Args[2:]); err != nil {
+		return err
+	}
 
 	if *privateKeyFile == "" {
-		fmt.Fprintln(os.Stderr, "Error: --private-key is required.")
 		signCmd.Usage()
-		os.Exit(1)
+		return fmt.Errorf("--private-key is required")
 	}
 
 	privateKeyBytes, err := os.ReadFile(*privateKeyFile)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error reading private key: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("reading private key: %w", err)
 	}
 
 	var inputBytes []byte
 	if *inputFile != "" {
 		inputBytes, err = os.ReadFile(*inputFile)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error reading input file: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("reading input file: %w", err)
 		}
 	} else {
 		inputBytes, err = io.ReadAll(os.Stdin)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error reading from stdin: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("reading from stdin: %w", err)
 		}
 	}
 
 	signedPayload, err := jsonsig.Sign(inputBytes, string(privateKeyBytes))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error signing payload: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("signing payload: %w", err)
 	}
 
 	if *outputFile != "" {
 		if err := os.WriteFile(*outputFile, signedPayload, 0644); err != nil {
-			fmt.Fprintf(os.Stderr, "Error writing output file: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("writing output file: %w", err)
 		}
 	} else {
 		fmt.Println(string(signedPayload))
 	}
+	return nil
 }
 
-func verifyCmd() {
-	verifyCmd := flag.NewFlagSet("verify", flag.ExitOnError)
+func verifyCmd() error {
+	verifyCmd := flag.NewFlagSet("verify", flag.ContinueOnError)
 	publicKeyFile := verifyCmd.String("public-key", "", "The file containing the public key.")
 	inputFile := verifyCmd.String("input", "", "The file to read the signed JSON document from. If not specified, reads from standard input.")
 
-	verifyCmd.Parse(os.Args[2:])
+	if err := verifyCmd.Parse(os.Args[2:]); err != nil {
+		return err
+	}
 
 	if *publicKeyFile == "" {
-		fmt.Fprintln(os.Stderr, "Error: --public-key is required.")
 		verifyCmd.Usage()
-		os.Exit(1)
+		return fmt.Errorf("--public-key is required")
 	}
 
 	publicKeyBytes, err := os.ReadFile(*publicKeyFile)
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error reading public key: %v\n", err)
-		os.Exit(1)
+		return fmt.Errorf("reading public key: %w", err)
 	}
 
 	var inputBytes []byte
 	if *inputFile != "" {
 		inputBytes, err = os.ReadFile(*inputFile)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error reading input file: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("reading input file: %w", err)
 		}
 	} else {
 		inputBytes, err = io.ReadAll(os.Stdin)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Error reading from stdin: %v\n", err)
-			os.Exit(1)
+			return fmt.Errorf("reading from stdin: %w", err)
 		}
 	}
 
-	valid, err := jsonsig.Verify(inputBytes, string(publicKeyBytes))
+	_, err = jsonsig.Verify(inputBytes, string(publicKeyBytes))
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "Error verifying signature: %v\n", err)
-		os.Exit(1)
+		return err
 	}
 
-	if valid {
-		fmt.Println("Verification successful!")
-		os.Exit(0)
-	} else {
-		fmt.Fprintln(os.Stderr, "Verification failed!")
-		os.Exit(1)
-	}
+	fmt.Println("Verification successful!")
+	return nil
 }
