@@ -48,6 +48,9 @@ type ServiceConfig struct {
 	PidFile               string
 	UserLevel             bool
 	UserName              string
+	// LogFileAddTimestamps controls whether log entries include date/time prefixes.
+	// Defaults to true for backward compatibility.
+	LogFileAddTimestamps *bool
 }
 
 type command struct {
@@ -209,6 +212,12 @@ func (conf *Config) applyDefaults() {
 
 	if conf.EnvironmentVars == nil {
 		conf.EnvironmentVars = make(map[string]string)
+	}
+
+	// Default to including timestamps in logs if not specified
+	if conf.ServiceConfig.LogFileAddTimestamps == nil {
+		t := true
+		conf.ServiceConfig.LogFileAddTimestamps = &t
 	}
 
 	// Default graceful is 5 seconds

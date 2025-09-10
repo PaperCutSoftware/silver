@@ -1,11 +1,12 @@
 package logging
 
 import (
-	"fmt"
-	"os"
-	"strings"
-	"testing"
-	"time"
+    "fmt"
+    "os"
+    "regexp"
+    "strings"
+    "testing"
+    "time"
 )
 
 func TestStandardLogging(t *testing.T) {
@@ -28,6 +29,58 @@ func TestStandardLogging(t *testing.T) {
 	if !strings.Contains(string(output), msg) {
 		t.Errorf("Expected '%s', got '%s'", msg, output)
 	}
+}
+
+func TestLogging_TimestampsOnByDefault(t *testing.T) {
+    lname := fmt.Sprintf("%s/test-timestamps-on-%d.log", os.TempDir(), time.Now().UnixNano())
+
+    logger := NewFileLogger(lname, "")
+    defer func() {
+        os.Remove(lname)
+    }()
+
+    msg := "TimestampsOnByDefault"
+    logger.Printf(msg)
+    CloseAllOpenFileLoggers()
+
+    data, err := os.ReadFile(lname)
+    if err != nil {
+        t.Fatalf("Unable to read file: %v", err)
+    }
+    line := strings.SplitN(string(data), "\n", 2)[0]
+    // Default flags include date and time. Format: YYYY/MM/DD HH:MM:SS ...
+    re := regexp.MustCompile(`^\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} `)
+    if !re.MatchString(line) {
+        t.Fatalf("expected timestamp prefix, got: %q", line)
+    }
+    if !strings.Contains(line, msg) {
+        t.Fatalf("expected message %q in line %q", msg, line)
+    }
+}
+
+func TestLogging_TimestampsDisabledWithZeroFlags(t *testing.T) {
+    lname := fmt.Sprintf("%s/test-timestamps-off-%d.log", os.TempDir(), time.Now().UnixNano())
+
+    logger := NewFileLogger(lname, "")
+    // Simulate disabling timestamps (as service/main.go does)
+    logger.SetFlags(0)
+    defer func() {
+        os.Remove(lname)
+    }()
+
+    msg := "TimestampsOff"
+    logger.Printf(msg)
+    CloseAllOpenFileLoggers()
+
+    data, err := os.ReadFile(lname)
+    if err != nil {
+        t.Fatalf("Unable to read file: %v", err)
+    }
+    line := strings.SplitN(string(data), "\n", 2)[0]
+    // With flags=0 we expect no date/time prefix; line should start with msg
+    if !strings.HasPrefix(line, msg) {
+        t.Fatalf("expected line to start with message %q, got %q", msg, line)
+    }
 }
 
 func TestRollingLog(t *testing.T) {

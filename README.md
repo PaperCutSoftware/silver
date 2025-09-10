@@ -82,6 +82,8 @@ The configuration file is the heart of Silver. Here is a comprehensive example w
         "LogFile": "${ServiceRoot}/${ServiceName}.log",
         "LogFileMaxSizeMb": 50,
         "LogFileMaxBackupFiles": 5,
+        // Include date/time on each log line (default: true)
+        "LogFileAddTimestamps": true,
 
         // File to store the current main service PID.
         "PidFile": "${ServiceRoot}/${ServiceName}.pid",
@@ -434,4 +436,3 @@ This project is licensed under the MIT Licence. See the `LICENSE` file for detai
 ## **About This Project**
 
 Silver is an open-source project actively maintained and supported by PaperCut Software. It is battle-tested technology, used in production to manage server and desktop components for millions of laptops and servers running [PaperCut's print management software](https://www.papercut.com/) for nearly a decade.  Silver is a better tool thanks to the collective effort of its community. A big thank you to everyone who has contributed their time, ideas, and code to the project.
-
