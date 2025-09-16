@@ -123,6 +123,20 @@ func osServiceControl(ctx *context) int {
 		if ctx.errorLogger != nil {
 			ctx.errorLogger.SetFlags(0)
 		}
+	} else {
+		// Configure timestamp precision
+		useMicro := false
+		if ctx.conf.ServiceConfig.LogFileTimestampMicroseconds != nil {
+			useMicro = *ctx.conf.ServiceConfig.LogFileTimestampMicroseconds
+		}
+		flags := log.Ldate | log.Ltime
+		if useMicro {
+			flags |= log.Lmicroseconds
+		}
+		ctx.logger.SetFlags(flags)
+		if ctx.errorLogger != nil {
+			ctx.errorLogger.SetFlags(flags)
+		}
 	}
 
 	// Setup service

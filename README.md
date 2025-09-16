@@ -84,6 +84,8 @@ The configuration file is the heart of Silver. Here is a comprehensive example w
         "LogFileMaxBackupFiles": 5,
         // Include date/time on each log line (default: true)
         "LogFileAddTimestamps": true,
+        // Include microseconds in timestamps when enabled (default: false)
+        "LogFileTimestampMicroseconds": false,
 
         // File to store the current main service PID.
         "PidFile": "${ServiceRoot}/${ServiceName}.pid",

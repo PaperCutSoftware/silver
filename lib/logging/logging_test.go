@@ -2,6 +2,7 @@ package logging
 
 import (
     "fmt"
+    "log"
     "os"
     "regexp"
     "strings"
@@ -26,8 +27,9 @@ func TestStandardLogging(t *testing.T) {
 		t.Errorf("Unable to read file: %v", err)
 	}
 
-	if !strings.Contains(string(output), msg) {
-		t.Errorf("Expected '%s', got '%s'", msg, output)
+	log := string(output)
+	if !strings.Contains(log, msg) {
+		t.Errorf("Expected '%s', got '%s'", msg, log)
 	}
 }
 
@@ -152,4 +154,33 @@ func TestRollingLogFlush_IsFlushed(t *testing.T) {
 	if !strings.Contains(string(output), "x") {
 		t.Errorf("Expected 'x' in file. It did not flush in time")
 	}
+}
+
+func TestLogging_TimestampsWithMicroseconds(t *testing.T) {
+    lname := fmt.Sprintf("%s/test-timestamps-micro-%d.log", os.TempDir(), time.Now().UnixNano())
+
+    logger := NewFileLogger(lname, "")
+    // Enable microseconds in timestamp
+    logger.SetFlags(log.Ldate | log.Ltime | log.Lmicroseconds)
+    defer func() {
+        os.Remove(lname)
+    }()
+
+    msg := "TimestampsWithMicroseconds"
+    logger.Printf(msg)
+    CloseAllOpenFileLoggers()
+
+    data, err := os.ReadFile(lname)
+    if err != nil {
+        t.Fatalf("Unable to read file: %v", err)
+    }
+    line := strings.SplitN(string(data), "\n", 2)[0]
+    // Expect format: YYYY/MM/DD HH:MM:SS.mmmuuu <msg>
+    re := regexp.MustCompile(`^\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2}\.\d{6} `)
+    if !re.MatchString(line) {
+        t.Fatalf("expected microsecond timestamp prefix, got: %q", line)
+    }
+    if !strings.Contains(line, msg) {
+        t.Fatalf("expected message %q in line %q", msg, line)
+    }
 }
