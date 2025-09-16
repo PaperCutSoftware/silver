@@ -82,8 +82,7 @@ The configuration file is the heart of Silver. Here is a comprehensive example w
         "LogFile": "${ServiceRoot}/${ServiceName}.log",
         "LogFileMaxSizeMb": 50,
         "LogFileMaxBackupFiles": 5,
-        // Include date/time on each log line (default: true)
-        "LogFileAddTimestamps": true,
+
         // Include microseconds in timestamps when enabled (default: false)
         "LogFileTimestampMicroseconds": false,
 

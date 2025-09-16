@@ -40,20 +40,15 @@ type ServiceDescription struct {
 }
 
 type ServiceConfig struct {
-	StopFile              string
-	ReloadFile            string
-	LogFile               string
-	LogFileMaxSizeMb      int64
-	LogFileMaxBackupFiles int
-	PidFile               string
-	UserLevel             bool
-	UserName              string
-    // LogFileAddTimestamps controls whether log entries include date/time prefixes.
-    // Defaults to true for backward compatibility.
-    LogFileAddTimestamps *bool
-    // LogFileTimestampMicroseconds controls whether timestamps include microseconds
-    // when LogFileAddTimestamps is enabled. Defaults to false.
-    LogFileTimestampMicroseconds *bool
+	StopFile                     string
+	ReloadFile                   string
+	LogFile                      string
+	LogFileMaxSizeMb             int64
+	LogFileMaxBackupFiles        int
+	PidFile                      string
+	UserLevel                    bool
+	UserName                     string
+	LogFileTimestampMicroseconds *bool
 }
 
 type command struct {
@@ -217,17 +212,11 @@ func (conf *Config) applyDefaults() {
 		conf.EnvironmentVars = make(map[string]string)
 	}
 
-    // Default to including timestamps in logs if not specified
-    if conf.ServiceConfig.LogFileAddTimestamps == nil {
-        t := true
-        conf.ServiceConfig.LogFileAddTimestamps = &t
-    }
-
-    // Default to not including microseconds in timestamps if not specified
-    if conf.ServiceConfig.LogFileTimestampMicroseconds == nil {
-        m := false
-        conf.ServiceConfig.LogFileTimestampMicroseconds = &m
-    }
+	// Default to not including microseconds in timestamps if not specified
+	if conf.ServiceConfig.LogFileTimestampMicroseconds == nil {
+		m := false
+		conf.ServiceConfig.LogFileTimestampMicroseconds = &m
+	}
 
 	// Default graceful is 5 seconds
 	for i := range conf.Services {

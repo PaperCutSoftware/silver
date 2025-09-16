@@ -113,30 +113,15 @@ func osServiceControl(ctx *context) int {
 		ctx.errorLogger = ctx.logger // use the same output for both stdout and errors
 	}
 
-	// Respect LogFileAddTimestamps flag (default true). When false, remove date/time prefixes.
-	LogFileAddTimestamps := true
-	if ctx.conf.ServiceConfig.LogFileAddTimestamps != nil {
-		LogFileAddTimestamps = *ctx.conf.ServiceConfig.LogFileAddTimestamps
+	// Configure timestamp precision. Add microseconds if requested.
+	useMicro := false
+	if ctx.conf.ServiceConfig.LogFileTimestampMicroseconds != nil {
+		useMicro = *ctx.conf.ServiceConfig.LogFileTimestampMicroseconds
 	}
-	if !LogFileAddTimestamps {
-		ctx.logger.SetFlags(0)
-		if ctx.errorLogger != nil {
-			ctx.errorLogger.SetFlags(0)
-		}
-	} else {
-		// Configure timestamp precision
-		useMicro := false
-		if ctx.conf.ServiceConfig.LogFileTimestampMicroseconds != nil {
-			useMicro = *ctx.conf.ServiceConfig.LogFileTimestampMicroseconds
-		}
-		flags := log.Ldate | log.Ltime
-		if useMicro {
-			flags |= log.Lmicroseconds
-		}
+	if useMicro {
+		flags := log.Ldate | log.Ltime | log.Lmicroseconds
 		ctx.logger.SetFlags(flags)
-		if ctx.errorLogger != nil {
-			ctx.errorLogger.SetFlags(flags)
-		}
+		ctx.errorLogger.SetFlags(flags)
 	}
 
 	// Setup service
