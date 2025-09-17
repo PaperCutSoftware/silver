@@ -1,13 +1,12 @@
 // SILVER - Service Wrapper
 //
-// Copyright (c) 2014-2021 PaperCut Software http://www.papercut.com/
+// Copyright (c) 2014-2025 PaperCut Software http://www.papercut.com/
 // Use of this source code is governed by an MIT or GPL Version 2 license.
 // See the project's LICENSE file for more information.
 package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"path"
@@ -106,10 +105,10 @@ func osServiceControl(ctx *context) int {
 		logFile = serviceName + ".log"
 	}
 	if logFile == "os.stdout" {
-		ctx.logger = logging.NewConsoleLogger()
-		ctx.errorLogger = logging.NewConsoleErrorLogger()
+		ctx.logger = logging.NewConsoleLogger(ctx.conf.ServiceConfig.LogFileTimestampFormat)
+		ctx.errorLogger = logging.NewConsoleErrorLogger(ctx.conf.ServiceConfig.LogFileTimestampFormat)
 	} else {
-		ctx.logger = logging.NewFileLoggerWithMaxSize(logFile, ctx.conf.ServiceConfig.UserName, maxSize, ctx.conf.ServiceConfig.LogFileMaxBackupFiles)
+		ctx.logger = logging.NewFileLoggerWithMaxSize(logFile, ctx.conf.ServiceConfig.UserName, maxSize, ctx.conf.ServiceConfig.LogFileMaxBackupFiles, ctx.conf.ServiceConfig.LogFileTimestampFormat)
 		ctx.errorLogger = ctx.logger // use the same output for both stdout and errors
 	}
 
@@ -146,7 +145,7 @@ func osServiceControl(ctx *context) int {
 
 	pidFile := ctx.conf.ServiceConfig.PidFile
 	if pidFile != "" {
-		_ = ioutil.WriteFile(pidFile, []byte(fmt.Sprintf("%d\n", os.Getpid())), 0644)
+		_ = os.WriteFile(pidFile, []byte(fmt.Sprintf("%d\n", os.Getpid())), 0644)
 	}
 	return 0
 }
@@ -197,7 +196,7 @@ func setupEnvironment(conf *config.Config) {
 	_ = os.Setenv("SILVER_SERVICE_PID", fmt.Sprint(os.Getpid()))
 
 	// If we have HTTP proxy conf, load this
-	if b, err := ioutil.ReadFile(proxyConfFile()); err == nil {
+	if b, err := os.ReadFile(proxyConfFile()); err == nil {
 		proxy := strings.TrimSpace(string(b))
 		if proxy != "" {
 			_ = os.Setenv("SILVER_HTTP_PROXY", proxy)
@@ -215,7 +214,7 @@ func writeProxyConf() error {
 	if err != nil {
 		proxy = ""
 	}
-	return ioutil.WriteFile(proxyConfFile(), []byte(proxy+"\n"), 0644)
+	return os.WriteFile(proxyConfFile(), []byte(proxy+"\n"), 0644)
 }
 
 func proxyConfFile() string {
@@ -256,7 +255,7 @@ func execCommand(ctx *context, args []string) int {
 	// Append any extra commands
 	cmdConf.Args = append(cmd.Args, args[1:]...)
 	// FIXME: Maybe unit conversion should be in the config layer?
-	cmdConf.ExecTimeout = (time.Second * time.Duration(cmd.TimeoutSecs))
+	cmdConf.ExecTimeout = time.Second * time.Duration(cmd.TimeoutSecs)
 
 	exitCode, err := cmdutil.Execute(cmdConf)
 	if err != nil {
@@ -335,7 +334,7 @@ func doStop(ctx *context) {
 	// Create stop file... another method to signal services to stop.
 	sf := stopFileName(ctx)
 	if sf != "" {
-		_ = ioutil.WriteFile(sf, nil, 0644)
+		_ = os.WriteFile(sf, nil, 0644)
 		defer os.Remove(sf)
 	}
 	if ctx.cronManager != nil {

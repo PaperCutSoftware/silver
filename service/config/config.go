@@ -40,14 +40,15 @@ type ServiceDescription struct {
 }
 
 type ServiceConfig struct {
-	StopFile              string
-	ReloadFile            string
-	LogFile               string
-	LogFileMaxSizeMb      int64
-	LogFileMaxBackupFiles int
-	PidFile               string
-	UserLevel             bool
-	UserName              string
+	StopFile               string
+	ReloadFile             string
+	LogFile                string
+	LogFileMaxSizeMb       int64
+	LogFileMaxBackupFiles  int
+	PidFile                string
+	UserLevel              bool
+	UserName               string
+	LogFileTimestampFormat string
 }
 
 type command struct {
@@ -209,6 +210,10 @@ func (conf *Config) applyDefaults() {
 
 	if conf.EnvironmentVars == nil {
 		conf.EnvironmentVars = make(map[string]string)
+	}
+
+	if conf.ServiceConfig.LogFileTimestampFormat == "" {
+		conf.ServiceConfig.LogFileTimestampFormat = "2006-01-02 15:04:05"
 	}
 
 	// Default graceful is 5 seconds
