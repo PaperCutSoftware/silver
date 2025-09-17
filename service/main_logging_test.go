@@ -30,14 +30,9 @@ func TestLogging_SampleConfigWithDefaultDateFormat(t *testing.T) {
 	}
 	line := string(data)
 
-	reDate := regexp.MustCompile(`^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} `)
+	reDate := regexp.MustCompile(`^\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} `)
 	if !reDate.MatchString(line) {
-		t.Fatalf("expected timestamp without microseconds, got %q", line)
-	}
-
-	reMicro := regexp.MustCompile(`^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{6} `)
-	if reMicro.MatchString(line) {
-		t.Fatalf("did not expect microsecond precision, got %q", line)
+		t.Fatalf("expected default date format without microseconds, got %q", line)
 	}
 
 	if !strings.Contains(line, testmessage) {

@@ -212,10 +212,6 @@ func (conf *Config) applyDefaults() {
 		conf.EnvironmentVars = make(map[string]string)
 	}
 
-	if conf.ServiceConfig.LogFileTimestampFormat == "" {
-		conf.ServiceConfig.LogFileTimestampFormat = "2006-01-02 15:04:05"
-	}
-
 	// Default graceful is 5 seconds
 	for i := range conf.Services {
 		if conf.Services[i].GracefulShutdownTimeoutSecs == 0 {
