@@ -48,7 +48,7 @@ type ServiceConfig struct {
 	PidFile                      string
 	UserLevel                    bool
 	UserName                     string
-	LogFileTimestampMicroseconds *bool
+	LogFileTimestampMicroseconds bool
 }
 
 type command struct {
@@ -210,12 +210,6 @@ func (conf *Config) applyDefaults() {
 
 	if conf.EnvironmentVars == nil {
 		conf.EnvironmentVars = make(map[string]string)
-	}
-
-	// Default to not including microseconds in timestamps if not specified
-	if conf.ServiceConfig.LogFileTimestampMicroseconds == nil {
-		m := false
-		conf.ServiceConfig.LogFileTimestampMicroseconds = &m
 	}
 
 	// Default graceful is 5 seconds

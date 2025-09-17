@@ -155,11 +155,7 @@ func osServiceControl(ctx *context) int {
 
 // If "ServiceConfig": {"LogFileTimestampMicroseconds": true} is set in the config, then add microseconds to the log timestamp. By default, log timestamps are to the second only.
 func applyMicrosecondsLoggingConfiguration(ctx *context) {
-	useMicroseconds := false
-	if ctx.conf.ServiceConfig.LogFileTimestampMicroseconds != nil {
-		useMicroseconds = *ctx.conf.ServiceConfig.LogFileTimestampMicroseconds
-	}
-	if useMicroseconds {
+	if ctx.conf.ServiceConfig.LogFileTimestampMicroseconds {
 		flags := log.Ldate | log.Ltime | log.Lmicroseconds
 		ctx.logger.SetFlags(flags)
 		ctx.errorLogger.SetFlags(flags)

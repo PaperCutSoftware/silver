@@ -28,8 +28,9 @@ func TestLogging_SampleConfigWithoutMicroseconds(t *testing.T) {
 	// this is usually done in main(), but we need to do it here for the test
 	applyMicrosecondsLoggingConfiguration(ctx)
 
-	msg := "LoggingWithoutMicroseconds"
-	logger.Printf(msg)
+	testmessage := "LoggingWithoutMicroseconds"
+	msg := "%s %t"
+	logger.Printf(msg, testmessage, ctx.conf.ServiceConfig.LogFileTimestampMicroseconds)
 	logging.CloseAllOpenFileLoggers()
 
 	data, err := os.ReadFile(cfg.ServiceConfig.LogFile)
@@ -48,8 +49,8 @@ func TestLogging_SampleConfigWithoutMicroseconds(t *testing.T) {
 		t.Fatalf("did not expect microsecond precision, got %q", line)
 	}
 
-	if !strings.Contains(line, msg) {
-		t.Fatalf("expected log line to contain %q, got %q", msg, line)
+	if !strings.Contains(line, testmessage) {
+		t.Fatalf("expected log line to contain %q, got %q", testmessage, line)
 	}
 }
 
@@ -69,8 +70,9 @@ func TestLogging_SampleConfigWithMicroseconds(t *testing.T) {
 	// this is usually done in main(), but we need to do it here for the test
 	applyMicrosecondsLoggingConfiguration(ctx)
 
-	msg := "LoggingWithMicroseconds"
-	logger.Printf(msg)
+	testmessage := "LoggingWithMicroseconds"
+	msg := "%s %t"
+	logger.Printf(msg, testmessage, ctx.conf.ServiceConfig.LogFileTimestampMicroseconds)
 	logging.CloseAllOpenFileLoggers()
 
 	data, err := os.ReadFile(cfg.ServiceConfig.LogFile)
@@ -84,8 +86,8 @@ func TestLogging_SampleConfigWithMicroseconds(t *testing.T) {
 		t.Fatalf("expected microsecond precision, got %q", line)
 	}
 
-	if !strings.Contains(line, msg) {
-		t.Fatalf("expected log line to contain %q, got %q", msg, line)
+	if !strings.Contains(line, testmessage) {
+		t.Fatalf("expected log line to contain %q, got %q", testmessage, line)
 	}
 }
 
