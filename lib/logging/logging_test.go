@@ -27,7 +27,7 @@ func TestStandardLogging(t *testing.T) {
 	}
 
 	outstr := string(output)
-	// Expect format: YYYY/MM/DD HH:MM:SS <msg>
+	// Expect format: YYYY-MM-DD HH:MM:SS <msg>
 	re := regexp.MustCompile(`^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2} `)
 	if !re.MatchString(outstr) {
 		t.Errorf("expected timestamp prefix, got: %q", outstr)
@@ -36,7 +36,6 @@ func TestStandardLogging(t *testing.T) {
 		t.Errorf("Expected '%s', got '%s'", msg, outstr)
 	}
 }
-
 
 func TestStandardTwelveHourLogging(t *testing.T) {
 	lname := fmt.Sprintf("%s/test-standard-log-%d.log", os.TempDir(), time.Now().Unix())
@@ -56,7 +55,7 @@ func TestStandardTwelveHourLogging(t *testing.T) {
 	}
 
 	outstr := string(output)
-	// Expect format: YYYY/MM/DD HH:MM:SS <msg>
+	// Expect format: YYYY/MM/DD HH:MM:SS [AM|PM] <msg>
 	re := regexp.MustCompile(`^\d{4}/\d{2}/\d{2} \d{2}:\d{2}:\d{2} [APM]{2} ` + msg)
 	if !re.MatchString(outstr) {
 		t.Errorf("expected timestamp prefix, got: %q", outstr)
