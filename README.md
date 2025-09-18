@@ -84,7 +84,8 @@ The configuration file is the heart of Silver. Here is a comprehensive example w
         "LogFileMaxBackupFiles": 5,
 
         // Custom format for log timestamps (e.g., "2006-01-02 15:04:05.000").
-        // If set, this overrides the default timestamp format.
+        // If set, this overrides the default timestamp format. 
+        // This is in GO format, see https://pkg.go.dev/time#Layout
         "LogFileTimestampFormat": "2006-01-02 15:04:05.000000",
 
         // File to store the current main service PID.
