@@ -23,7 +23,7 @@ func TestLogIsOwnedByCorrectUser(t *testing.T) {
 
 	lname := fmt.Sprintf("%s/test-standard-log-%d.log", os.TempDir(), time.Now().Unix())
 
-	logger := NewFileLogger(lname, userName)
+	logger := NewFileLogger(lname, userName, "")
 	defer func() {
 		os.Remove(lname)
 	}()

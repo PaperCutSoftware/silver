@@ -64,6 +64,22 @@ func init() {
 	changeOwnerOfFileFunc = changeOwnerOfFile
 }
 
+type logWriter struct {
+	io.Writer
+	timeformat string
+}
+
+// custom Write to add timestamps with custom format
+func (w logWriter) Write(bytes []byte) (int, error) {
+	timestamp := time.Now().Format(w.timeformat) + " "
+	n1, err := io.WriteString(w.Writer, timestamp)
+	if err != nil {
+		return n1, err
+	}
+	n2, err := w.Writer.Write(bytes)
+	return n1 + n2, err
+}
+
 func (f *flusher) run(rf *rollingFile) {
 	tick := time.Tick(f.interval)
 	for {
@@ -176,12 +192,12 @@ func openLogFile(name string, owner string) (f *os.File, err error) {
 }
 
 // NewFileLogger implements a rolling logger with default maximum size (50Mb)
-func NewFileLogger(file string, owner string) (logger *log.Logger) {
-	return NewFileLoggerWithMaxSize(file, owner, defaultMaxSize, defaultMaxBackupFiles)
+func NewFileLogger(file string, owner string, timeformat string) (logger *log.Logger) {
+	return NewFileLoggerWithMaxSize(file, owner, defaultMaxSize, defaultMaxBackupFiles, timeformat)
 }
 
 // NewFileLoggerWithMaxSize implements a rolling logger with a set size
-func NewFileLoggerWithMaxSize(file string, owner string, maxSize int64, maxBackupFiles int) (logger *log.Logger) {
+func NewFileLoggerWithMaxSize(file string, owner string, maxSize int64, maxBackupFiles int, timeformat string) (logger *log.Logger) {
 	rf, err := newRollingFile(file, owner, maxSize, maxBackupFiles)
 	// This trick ensures that the flusher goroutine does not keep
 	// the returned wrapper object from being garbage collected. When it is
@@ -190,7 +206,13 @@ func NewFileLoggerWithMaxSize(file string, owner string, maxSize int64, maxBacku
 	rfWrapper := &rollingFileWrapper{rf}
 	runtime.SetFinalizer(rfWrapper, stopFlusher)
 	if err == nil {
-		logger = log.New(rfWrapper, "", log.Ldate|log.Ltime)
+		var writer io.Writer = rfWrapper
+		flags := log.Ldate | log.Ltime
+		if timeformat != "" {
+			writer = logWriter{Writer: rfWrapper, timeformat: timeformat}
+			flags = 0
+		}
+		logger = log.New(writer, "", flags)
 	} else {
 		fmt.Fprintf(os.Stderr, "WARNING: Unable to set up log file: %v\n", err)
 		logger = NewNilLogger()
@@ -213,13 +235,25 @@ func NewNilLogger() *log.Logger {
 }
 
 // NewConsoleErrorLogger is a basic logger to Stderr
-func NewConsoleErrorLogger() (logger *log.Logger) {
-	logger = log.New(os.Stderr, "", log.Ldate|log.Ltime)
+func NewConsoleErrorLogger(timeformat string) (logger *log.Logger) {
+	var writer io.Writer = os.Stderr
+	flags := log.Ldate | log.Ltime
+	if timeformat != "" {
+		writer = logWriter{Writer: os.Stderr, timeformat: timeformat}
+		flags = 0
+	}
+	logger = log.New(writer, "", flags)
 	return logger
 }
 
 // NewConsoleLogger is a basic logger to Stdout
-func NewConsoleLogger() (logger *log.Logger) {
-	logger = log.New(os.Stdout, "", log.Ldate|log.Ltime)
+func NewConsoleLogger(timeformat string) (logger *log.Logger) {
+	var writer io.Writer = os.Stdout
+	flags := log.Ldate | log.Ltime
+	if timeformat != "" {
+		writer = logWriter{Writer: os.Stdout, timeformat: timeformat}
+		flags = 0
+	}
+	logger = log.New(writer, "", flags)
 	return logger
 }

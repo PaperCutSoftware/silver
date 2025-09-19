@@ -40,14 +40,15 @@ type ServiceDescription struct {
 }
 
 type ServiceConfig struct {
-	StopFile              string
-	ReloadFile            string
-	LogFile               string
-	LogFileMaxSizeMb      int64
-	LogFileMaxBackupFiles int
-	PidFile               string
-	UserLevel             bool
-	UserName              string
+	StopFile               string
+	ReloadFile             string
+	LogFile                string
+	LogFileMaxSizeMb       int64
+	LogFileMaxBackupFiles  int
+	PidFile                string
+	UserLevel              bool
+	UserName               string
+	LogFileTimestampFormat string
 }
 
 type command struct {
