@@ -70,8 +70,14 @@ type logWriter struct {
 }
 
 // custom Write to add timestamps with custom format
-func (writer logWriter) Write(bytes []byte) (int, error) {
-	return fmt.Fprintf(writer.Writer, "%s %s", time.Now().Format(writer.timeformat), string(bytes))
+func (w logWriter) Write(bytes []byte) (int, error) {
+	timestamp := time.Now().Format(w.timeformat) + " "
+	n1, err := io.WriteString(w.Writer, timestamp)
+	if err != nil {
+		return n1, err
+	}
+	n2, err := w.Writer.Write(bytes)
+	return n1 + n2, err
 }
 
 func (f *flusher) run(rf *rollingFile) {
