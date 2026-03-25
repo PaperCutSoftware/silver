@@ -1,6 +1,6 @@
 // SILVER - Service Wrapper
 //
-// Copyright (c) 2014 PaperCut Software http://www.papercut.com/
+// Copyright (c) 2014-2026 PaperCut Software http://www.papercut.com/
 // Use of this source code is governed by an MIT or GPL Version 2 license.
 // See the project's LICENSE file for more information.
 //
@@ -53,6 +53,7 @@ type rollingFile struct {
 	bytesSinceLastFlush int64
 	currentSize         int64
 	flusher             *flusher
+	registered          bool
 }
 
 type flusher struct {
@@ -71,13 +72,10 @@ type logWriter struct {
 
 // custom Write to add timestamps with custom format
 func (w logWriter) Write(bytes []byte) (int, error) {
-	timestamp := time.Now().Format(w.timeformat) + " "
-	n1, err := io.WriteString(w.Writer, timestamp)
-	if err != nil {
-		return n1, err
-	}
-	n2, err := w.Writer.Write(bytes)
-	return n1 + n2, err
+	timestamp := []byte(time.Now().Format(w.timeformat) + " ")
+	combined := append(timestamp, bytes...)
+	n, err := w.Writer.Write(combined)
+	return n, err
 }
 
 func (f *flusher) run(rf *rollingFile) {
@@ -149,24 +147,29 @@ func (rf *rollingFile) open() error {
 		return err
 	}
 	rf.currentSize = finfo.Size()
-	openRollingFiles = append(openRollingFiles, rf)
+	if !rf.registered {
+		openRollingFiles = append(openRollingFiles, rf)
+		rf.registered = true
+	}
 	return nil
 }
 
 func (rf *rollingFile) roll() error {
 	rf.bufWriter.Flush()
+	name := rf.file.Name()
 	rf.file.Close()
+	rf.file = nil
 
 	// Start from the last backup file and move everything back by 1 step
 	for i := rf.maxBackupFiles; i > 0; i-- {
 		var renameFrom, renameTo string
 
 		if i == 1 {
-			renameFrom = rf.file.Name() // Original file
+			renameFrom = name // Original file
 		} else {
-			renameFrom = fmt.Sprintf("%s.%d", rf.file.Name(), i-1)
+			renameFrom = fmt.Sprintf("%s.%d", name, i-1)
 		}
-		renameTo = fmt.Sprintf("%s.%d", rf.file.Name(), i)
+		renameTo = fmt.Sprintf("%s.%d", name, i)
 
 		if err := os.Rename(renameFrom, renameTo); err == nil || errors.Is(err, os.ErrNotExist) {
 			// Continue if no error or if the error is 'file not found'
@@ -175,7 +178,6 @@ func (rf *rollingFile) roll() error {
 			// For any other error.
 			fmt.Fprintf(os.Stderr, "ERROR: Error renaming %s to %s. %v\n", renameFrom, renameTo, err)
 		}
-
 	}
 
 	// Reopen a new log file for writing
@@ -183,7 +185,7 @@ func (rf *rollingFile) roll() error {
 }
 
 func openLogFile(name string, owner string) (f *os.File, err error) {
-	f, err = os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	f, err = os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
 	if err != nil {
 		return
 	}
@@ -224,7 +226,9 @@ func NewFileLoggerWithMaxSize(file string, owner string, maxSize int64, maxBacku
 func CloseAllOpenFileLoggers() {
 	for _, rf := range openRollingFiles {
 		rf.bufWriter.Flush()
-		rf.file.Close()
+		if rf.file != nil {
+			rf.file.Close()
+		}
 	}
 	openRollingFiles = []*rollingFile{}
 }
