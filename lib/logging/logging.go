@@ -72,10 +72,11 @@ type logWriter struct {
 
 // custom Write to add timestamps with custom format
 func (w logWriter) Write(bytes []byte) (int, error) {
-	timestamp := []byte(time.Now().Format(w.timeformat) + " ")
-	combined := append(timestamp, bytes...)
-	n, err := w.Writer.Write(combined)
-	return n, err
+	// This buffer will be escaped to the heap since it is used for an argument of io.Writer.
+	// However, no additional allocation will occur unless the message length exceeds 4096 bytes.
+	var buffer [4096]byte
+	b := append(time.Now().AppendFormat(buffer[:0], w.timeformat), ' ')
+	return w.Writer.Write(append(b, bytes...))
 }
 
 func (f *flusher) run(rf *rollingFile) {
