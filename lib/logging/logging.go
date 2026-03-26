@@ -118,7 +118,10 @@ func (rf *rollingFile) Write(p []byte) (n int, err error) {
 	defer rf.Unlock()
 
 	if rf.currentSize+int64(len(p)) >= rf.maxSize {
-		rf.roll()
+		err = rf.roll()
+		if err != nil {
+			return
+		}
 	}
 	n, err = rf.bufWriter.Write(p)
 	rf.currentSize += int64(n)
