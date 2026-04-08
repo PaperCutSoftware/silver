@@ -23,8 +23,7 @@ func getHTTPProxies() ([]string, error) {
 		     HTTP Proxy Server: localhost
 	*/
 	if strings.Contains(sysData, "HTTP Proxy Enabled: Yes") {
-		// FIXME: If more than one match, pick?
-		server := regexp.MustCompile(`HTTP Proxy Server:\s+(\w+)`).FindStringSubmatch(sysData)
+		server := regexp.MustCompile(`HTTP Proxy Server:\s+(\S+)`).FindStringSubmatch(sysData)
 		port := regexp.MustCompile(`HTTP Proxy Port:\s+(\d+)`).FindStringSubmatch(sysData)
 		if len(server) > 1 && len(port) > 1 {
 			return []string{fmt.Sprintf("%s:%s", server[1], port[1])}, nil
