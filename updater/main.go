@@ -29,6 +29,10 @@ var (
 	allowHTTP       = flag.Bool("http", false, "Debug only: Support non-https for update checking")
 	publicKey       = flag.String("public-key", "", "(Optional) Base64 encoded Ed25519 public key for update manifest verification.")
 	allowInsecure   = flag.Bool("insecure", false, "Support insecure & self-signed certificates for update checking")
+
+	// This is a deprecated alias for --insecure. Previously this also included HTTP support,
+	// but that is too risky to allow by default, so now it only allows insecure HTTPS certificates.
+	unsafe = flag.Bool("unsafe", false, "Support insecure & self-signed certificates for update checking")
 )
 
 func usage() {
@@ -88,6 +92,11 @@ func main() {
 	if !*allowHTTP && !strings.HasPrefix(strings.ToLower(checkURL), "https") {
 		_, _ = fmt.Fprintf(os.Stderr, "ERROR: The update URL must be HTTPS for security reasons!\n")
 		os.Exit(1)
+	}
+
+	if *unsafe {
+		_, _ = fmt.Fprintf(os.Stderr, "WARNING: --unsafe is deprecated and will be removed. Please use --insecure instead.\n")
+		*allowInsecure = true
 	}
 
 	if *allowInsecure { // Overwrite default HTTP transport to allow insecure https certificates
