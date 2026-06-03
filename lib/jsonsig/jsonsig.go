@@ -78,6 +78,10 @@ func Verify(signedPayload []byte, publicKeyB64 string) (bool, error) {
 		return false, err
 	}
 
+	if len(publicKey) != ed25519.PublicKeySize {
+		return false, fmt.Errorf("invalid public key size: expected %d bytes, got %d", ed25519.PublicKeySize, len(publicKey))
+	}
+
 	// This call is a sanity check to ensure the JSON input is well-formed and does not contain duplicate keys, which
 	// could lead to security issues.
 	if _, err := jcs.Transform(signedPayload); err != nil {
@@ -97,6 +101,9 @@ func Verify(signedPayload []byte, publicKeyB64 string) (bool, error) {
 	signature, err := base64.StdEncoding.Strict().DecodeString(signatureB64)
 	if err != nil {
 		return false, fmt.Errorf("failed to decode base64 signature: %w", err)
+
+	if len(signature) != ed25519.SignatureSize {
+		return false, fmt.Errorf("invalid signature size: expected %d bytes, got %d", ed25519.SignatureSize, len(signature))
 	}
 
 	delete(m, "signature")
