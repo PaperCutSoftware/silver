@@ -56,7 +56,7 @@ func Sign(payload []byte, privateKeyB64 string) ([]byte, error) {
 		return nil, fmt.Errorf("failed to canonicalize payload: %w", err)
 	}
 
-	privateKey, err := base64.StdEncoding.DecodeString(privateKeyB64)
+	privateKey, err := base64.StdEncoding.Strict().DecodeString(privateKeyB64)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +73,7 @@ func Sign(payload []byte, privateKeyB64 string) ([]byte, error) {
 // Verify takes a signed JSON payload and a base64 encoded public key, and returns
 // true if the signature is valid.
 func Verify(signedPayload []byte, publicKeyB64 string) (bool, error) {
-	publicKey, err := base64.StdEncoding.DecodeString(publicKeyB64)
+	publicKey, err := base64.StdEncoding.Strict().DecodeString(publicKeyB64)
 	if err != nil {
 		return false, err
 	}
@@ -88,7 +88,7 @@ func Verify(signedPayload []byte, publicKeyB64 string) (bool, error) {
 		return false, fmt.Errorf("invalid signature format: 'signature' field missing or not a string")
 	}
 
-	signature, err := base64.StdEncoding.DecodeString(signatureB64)
+	signature, err := base64.StdEncoding.Strict().DecodeString(signatureB64)
 	if err != nil {
 		return false, fmt.Errorf("failed to decode base64 signature: %w", err)
 	}
