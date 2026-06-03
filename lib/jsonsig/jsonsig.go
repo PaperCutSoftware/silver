@@ -1,7 +1,7 @@
 // SILVER - Service Wrapper
 // Auto Updater
 //
-// Copyright (c) 2014-2025 PaperCut Software http://www.papercut.com/
+// Copyright (c) 2014-2026 PaperCut Software http://www.papercut.com/
 // Use of this source code is governed by an MIT or GPL Version 2 license.
 // See the project's LICENSE file for more information.
 //
@@ -12,6 +12,7 @@
 package jsonsig
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/base64"
@@ -39,8 +40,8 @@ func GenerateKeys() (string, string, error) {
 // signed JSON payload. The signature is added to the JSON payload in a "signature" field.
 func Sign(payload []byte, privateKeyB64 string) ([]byte, error) {
 	// Validate we've got a valid JSON object.
-	var m map[string]interface{}
-	if err := json.Unmarshal(payload, &m); err != nil {
+	var m map[string]any
+	if err := unmarshalJSON(payload, &m); err != nil {
 		return nil, fmt.Errorf("payload must be a JSON object (e.g {...}): %w", err)
 	}
 
@@ -77,8 +78,8 @@ func Verify(signedPayload []byte, publicKeyB64 string) (bool, error) {
 		return false, err
 	}
 
-	var m map[string]interface{}
-	if err := json.Unmarshal(signedPayload, &m); err != nil {
+	var m map[string]any
+	if err := unmarshalJSON(signedPayload, &m); err != nil {
 		return false, fmt.Errorf("payload must be a JSON object: %w", err)
 	}
 
@@ -112,4 +113,11 @@ func Verify(signedPayload []byte, publicKeyB64 string) (bool, error) {
 	}
 
 	return true, nil
+}
+
+// unmarshalJSON deserializes a JSON byte slice while preserving the precision of large numbers.
+func unmarshalJSON(data []byte, m *map[string]any) error {
+	d := json.NewDecoder(bytes.NewReader(data))
+	d.UseNumber()
+	return d.Decode(m)
 }
