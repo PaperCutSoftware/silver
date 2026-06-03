@@ -53,7 +53,7 @@ func Sign(payload []byte, privateKeyB64 string) ([]byte, error) {
 	// Canonicalize the payload that we will sign.
 	canonicalPayload, err := jcs.Transform(payload)
 	if err != nil {
-		return nil, fmt.Errorf("failed to canonicalize payload: %w", err)
+		return nil, fmt.Errorf("canonicalize payload: %w", err)
 	}
 
 	privateKey, err := base64.StdEncoding.Strict().DecodeString(privateKeyB64)
@@ -100,7 +100,8 @@ func Verify(signedPayload []byte, publicKeyB64 string) (bool, error) {
 
 	signature, err := base64.StdEncoding.Strict().DecodeString(signatureB64)
 	if err != nil {
-		return false, fmt.Errorf("failed to decode base64 signature: %w", err)
+		return false, fmt.Errorf("decode base64 signature: %w", err)
+	}
 
 	if len(signature) != ed25519.SignatureSize {
 		return false, fmt.Errorf("invalid signature size: expected %d bytes, got %d", ed25519.SignatureSize, len(signature))
@@ -113,12 +114,12 @@ func Verify(signedPayload []byte, publicKeyB64 string) (bool, error) {
 	// canonicalizing that.
 	unsignedPayload, err := json.Marshal(m)
 	if err != nil {
-		return false, fmt.Errorf("failed to marshal unsigned payload: %w", err)
+		return false, fmt.Errorf("marshal unsigned payload: %w", err)
 	}
 
 	canonicalPayload, err := jcs.Transform(unsignedPayload)
 	if err != nil {
-		return false, fmt.Errorf("failed to canonicalize payload for verification: %w", err)
+		return false, fmt.Errorf("canonicalize payload for verification: %w", err)
 	}
 
 	if !ed25519.Verify(publicKey, canonicalPayload, signature) {
