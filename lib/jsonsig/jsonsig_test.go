@@ -198,7 +198,7 @@ func TestDuplicateKeyBypass(t *testing.T) {
 	}
 }
 
-func TestVerifyPanicWithInvalidLengths(t *testing.T) {
+func TestVerifyErrorWithInvalidLengths(t *testing.T) {
 	publicKey, privateKey, err := GenerateKeys()
 	if err != nil {
 		t.Fatalf("Failed to generate keys: %v", err)
