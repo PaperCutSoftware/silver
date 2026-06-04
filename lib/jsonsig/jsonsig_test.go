@@ -179,8 +179,7 @@ func TestDuplicateKeyBypass(t *testing.T) {
 	tamperedPayload := []byte(`{
 "foo": "malicious",
 "foo": "bar",
-"signature": "
-`)
+"signature": "`)
 
 	// Extract signature from signedPayload
 	var m map[string]any
