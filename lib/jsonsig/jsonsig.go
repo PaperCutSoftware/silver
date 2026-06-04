@@ -82,8 +82,8 @@ func Verify(signedPayload []byte, publicKeyB64 string) (bool, error) {
 		return false, fmt.Errorf("invalid public key size: expected %d bytes, got %d", ed25519.PublicKeySize, len(publicKey))
 	}
 
-	// This call is a sanity check to ensure the JSON input is well-formed and does not contain duplicate keys, which
-	// could lead to security issues.
+	// This call is a sanity check to ensure the JSON input is well-formed and does not have any malformed structure,
+	// which could lead to security issues.
 	if _, err := jcs.Transform(signedPayload); err != nil {
 		return false, fmt.Errorf("invalid payload structure: potential duplicate keys or malformed JSON: %w", err)
 	}
