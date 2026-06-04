@@ -283,3 +283,56 @@ func TestBase64PaddingMalleability(t *testing.T) {
 		t.Error("VULNERABILITY: Verify returned true for malleable base64 signature!")
 	}
 }
+
+func TestTrailingDataRejection(t *testing.T) {
+	publicKey, privateKey, err := GenerateKeys()
+	if err != nil {
+		t.Fatalf("Failed to generate keys: %v", err)
+	}
+	payload := []byte(`{"foo": "bar"}`)
+	signedPayload, err := Sign(payload, privateKey)
+	if err != nil {
+		t.Fatalf("Failed to sign payload: %v", err)
+	}
+
+	t.Run("trailing whitespace is allowed", func(t *testing.T) {
+		payloadWithWhitespace := append(signedPayload, []byte(" \n\t ")...)
+		valid, err := Verify(payloadWithWhitespace, publicKey)
+		if err != nil {
+			t.Errorf("Expected success for trailing whitespace, got error: %v", err)
+		}
+		if !valid {
+			t.Error("Expected valid=true for trailing whitespace, got false")
+		}
+	})
+
+	t.Run("trailing garbage is rejected", func(t *testing.T) {
+		payloadWithGarbage := append(signedPayload, []byte("garbage")...)
+		valid, err := Verify(payloadWithGarbage, publicKey)
+		if err == nil {
+			t.Error("Expected error for trailing garbage, got nil")
+		}
+		if valid {
+			t.Error("Expected valid=false for trailing garbage, got true")
+		}
+	})
+
+	t.Run("multiple top level JSON values are rejected", func(t *testing.T) {
+		multipleJSON := append(signedPayload, []byte(`{"foo": "malicious"}`)...)
+		valid, err := Verify(multipleJSON, publicKey)
+		if err == nil {
+			t.Error("Expected error for multiple top level JSON values, got nil")
+		}
+		if valid {
+			t.Error("Expected valid=false for multiple top level JSON values, got true")
+		}
+	})
+
+	t.Run("Sign rejects trailing garbage", func(t *testing.T) {
+		payloadWithGarbage := []byte(`{"foo": "bar"}garbage`)
+		_, err := Sign(payloadWithGarbage, privateKey)
+		if err == nil {
+			t.Error("Expected Sign to fail for payload with trailing garbage, got nil error")
+		}
+	})
+}
