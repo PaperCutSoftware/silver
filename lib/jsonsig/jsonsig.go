@@ -1,7 +1,7 @@
 // SILVER - Service Wrapper
 // Auto Updater
 //
-// Copyright (c) 2014-2025 PaperCut Software http://www.papercut.com/
+// Copyright (c) 2014-2026 PaperCut Software http://www.papercut.com/
 // Use of this source code is governed by an MIT or GPL Version 2 license.
 // See the project's LICENSE file for more information.
 //
@@ -12,6 +12,7 @@
 package jsonsig
 
 import (
+	"bytes"
 	"crypto/ed25519"
 	"crypto/rand"
 	"encoding/base64"
@@ -39,8 +40,8 @@ func GenerateKeys() (string, string, error) {
 // signed JSON payload. The signature is added to the JSON payload in a "signature" field.
 func Sign(payload []byte, privateKeyB64 string) ([]byte, error) {
 	// Validate we've got a valid JSON object.
-	var m map[string]interface{}
-	if err := json.Unmarshal(payload, &m); err != nil {
+	var m map[string]any
+	if err := unmarshalJSON(payload, &m); err != nil {
 		return nil, fmt.Errorf("payload must be a JSON object (e.g {...}): %w", err)
 	}
 
@@ -52,10 +53,10 @@ func Sign(payload []byte, privateKeyB64 string) ([]byte, error) {
 	// Canonicalize the payload that we will sign.
 	canonicalPayload, err := jcs.Transform(payload)
 	if err != nil {
-		return nil, fmt.Errorf("failed to canonicalize payload: %w", err)
+		return nil, fmt.Errorf("canonicalize payload: %w", err)
 	}
 
-	privateKey, err := base64.StdEncoding.DecodeString(privateKeyB64)
+	privateKey, err := base64.StdEncoding.Strict().DecodeString(privateKeyB64)
 	if err != nil {
 		return nil, err
 	}
@@ -72,13 +73,23 @@ func Sign(payload []byte, privateKeyB64 string) ([]byte, error) {
 // Verify takes a signed JSON payload and a base64 encoded public key, and returns
 // true if the signature is valid.
 func Verify(signedPayload []byte, publicKeyB64 string) (bool, error) {
-	publicKey, err := base64.StdEncoding.DecodeString(publicKeyB64)
+	publicKey, err := base64.StdEncoding.Strict().DecodeString(publicKeyB64)
 	if err != nil {
 		return false, err
 	}
 
-	var m map[string]interface{}
-	if err := json.Unmarshal(signedPayload, &m); err != nil {
+	if len(publicKey) != ed25519.PublicKeySize {
+		return false, fmt.Errorf("invalid public key size: expected %d bytes, got %d", ed25519.PublicKeySize, len(publicKey))
+	}
+
+	// This call is a sanity check to ensure the JSON input is well-formed and does not have any malformed structure,
+	// which could lead to security issues.
+	if _, err := jcs.Transform(signedPayload); err != nil {
+		return false, fmt.Errorf("invalid payload structure: potential duplicate keys or malformed JSON: %w", err)
+	}
+
+	var m map[string]any
+	if err := unmarshalJSON(signedPayload, &m); err != nil {
 		return false, fmt.Errorf("payload must be a JSON object: %w", err)
 	}
 
@@ -87,9 +98,13 @@ func Verify(signedPayload []byte, publicKeyB64 string) (bool, error) {
 		return false, fmt.Errorf("invalid signature format: 'signature' field missing or not a string")
 	}
 
-	signature, err := base64.StdEncoding.DecodeString(signatureB64)
+	signature, err := base64.StdEncoding.Strict().DecodeString(signatureB64)
 	if err != nil {
-		return false, fmt.Errorf("failed to decode base64 signature: %w", err)
+		return false, fmt.Errorf("decode base64 signature: %w", err)
+	}
+
+	if len(signature) != ed25519.SignatureSize {
+		return false, fmt.Errorf("invalid signature size: expected %d bytes, got %d", ed25519.SignatureSize, len(signature))
 	}
 
 	delete(m, "signature")
@@ -99,12 +114,12 @@ func Verify(signedPayload []byte, publicKeyB64 string) (bool, error) {
 	// canonicalizing that.
 	unsignedPayload, err := json.Marshal(m)
 	if err != nil {
-		return false, fmt.Errorf("failed to marshal unsigned payload: %w", err)
+		return false, fmt.Errorf("marshal unsigned payload: %w", err)
 	}
 
 	canonicalPayload, err := jcs.Transform(unsignedPayload)
 	if err != nil {
-		return false, fmt.Errorf("failed to canonicalize payload for verification: %w", err)
+		return false, fmt.Errorf("canonicalize payload for verification: %w", err)
 	}
 
 	if !ed25519.Verify(publicKey, canonicalPayload, signature) {
@@ -112,4 +127,11 @@ func Verify(signedPayload []byte, publicKeyB64 string) (bool, error) {
 	}
 
 	return true, nil
+}
+
+// unmarshalJSON deserializes a JSON byte slice while preserving the precision of large numbers.
+func unmarshalJSON(data []byte, m *map[string]any) error {
+	d := json.NewDecoder(bytes.NewReader(data))
+	d.UseNumber()
+	return d.Decode(m)
 }
