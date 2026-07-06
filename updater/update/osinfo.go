@@ -11,6 +11,7 @@ package update
 import (
 	"net/http"
 	"runtime"
+	"strings"
 )
 
 const (
@@ -19,6 +20,19 @@ const (
 	headerOSArchKey       string = "X-OS-Arch"
 	headerOSNativeArchKey string = "X-OS-Native-Arch"
 )
+
+// trimToNumericVersion trims a version string to its leading dot-separated
+// numeric part, dropping suffixes like the distro patch, kernel flavor and
+// architecture in a Linux kernel release ("5.15.0-91-generic" → "5.15.0").
+// The update server compares versions segment-by-segment numerically, so
+// only digits and dots may be sent.
+func trimToNumericVersion(version string) string {
+	end := 0
+	for end < len(version) && (version[end] == '.' || ('0' <= version[end] && version[end] <= '9')) {
+		end++
+	}
+	return strings.TrimRight(version[:end], ".")
+}
 
 // addOSContextToRequestHeader adds OS identity headers used by the update
 // server to select a build compatible with this host. GOOS and GOARCH are

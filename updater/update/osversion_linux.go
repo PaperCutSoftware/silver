@@ -10,11 +10,12 @@ package update
 
 import "golang.org/x/sys/unix"
 
-// osVersion returns the Linux kernel release (e.g. "6.17.24") via uname.
+// osVersion returns the Linux kernel version (e.g. "5.15.0") via uname,
+// trimming distro suffixes from the release string ("5.15.0-91-generic").
 func osVersion() (string, error) {
 	var uts unix.Utsname
 	if err := unix.Uname(&uts); err != nil {
 		return "", err
 	}
-	return unix.ByteSliceToString(uts.Release[:]), nil
+	return trimToNumericVersion(unix.ByteSliceToString(uts.Release[:])), nil
 }

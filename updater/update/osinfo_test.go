@@ -15,6 +15,31 @@ import (
 	"testing"
 )
 
+func TestTrimToNumericVersion(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+		want  string
+	}{
+		{"vanilla kernel", "6.17.24", "6.17.24"},
+		{"ubuntu", "5.15.0-91-generic", "5.15.0"},
+		{"debian", "6.1.0-13-amd64", "6.1.0"},
+		{"rhel", "4.18.0-477.10.1.el8_8.x86_64", "4.18.0"},
+		{"amazon linux", "6.1.66-91.160.amzn2023.x86_64", "6.1.66"},
+		{"no trailing dot kept", "5.15.", "5.15"},
+		{"non-numeric prefix", "generic-5.15", ""},
+		{"empty", "", ""},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := trimToNumericVersion(tt.input); got != tt.want {
+				t.Errorf("trimToNumericVersion(%q) = %q, want %q", tt.input, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestAddOSContextToRequestHeader(t *testing.T) {
 	req, err := http.NewRequest("GET", "https://example.com/check-update/test", nil)
 	if err != nil {
