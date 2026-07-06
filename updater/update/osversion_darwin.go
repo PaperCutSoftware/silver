@@ -6,8 +6,6 @@
 // See the project's LICENSE file for more information.
 //
 
-//go:build darwin
-
 package update
 
 import "syscall"
