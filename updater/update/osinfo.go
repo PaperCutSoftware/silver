@@ -9,6 +9,7 @@
 package update
 
 import (
+	"fmt"
 	"net/http"
 	"runtime"
 	"strings"
@@ -46,5 +47,7 @@ func setOSHeaders(req *http.Request) {
 	// Best effort: an unknown OS version is better than a failed update check.
 	if version, err := osVersion(); err == nil {
 		req.Header.Set(headerOSVersionKey, version)
+	} else {
+		fmt.Printf("Couldn't detect OS version: %v.\n", err)
 	}
 }
