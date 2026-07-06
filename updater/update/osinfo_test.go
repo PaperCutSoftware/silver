@@ -6,13 +6,15 @@
 // See the project's LICENSE file for more information.
 //
 
-package update
+package update_test
 
 import (
 	"net/http"
 	"regexp"
 	"runtime"
 	"testing"
+
+	"github.com/papercutsoftware/silver/updater/update"
 )
 
 func TestTrimToNumericVersion(t *testing.T) {
@@ -33,8 +35,8 @@ func TestTrimToNumericVersion(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := trimToNumericVersion(tt.input); got != tt.want {
-				t.Errorf("trimToNumericVersion(%q) = %q, want %q", tt.input, got, tt.want)
+			if got := update.TrimToNumericVersion(tt.input); got != tt.want {
+				t.Errorf("TrimToNumericVersion(%q) = %q, want %q", tt.input, got, tt.want)
 			}
 		})
 	}
@@ -46,28 +48,28 @@ func TestSetOSHeaders(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	setOSHeaders(req)
+	update.SetOSHeaders(req)
 
-	if got := req.Header.Get(headerOSTypeKey); got != runtime.GOOS {
-		t.Errorf("%s = %q, want %q", headerOSTypeKey, got, runtime.GOOS)
+	if got := req.Header.Get("X-OS-Type"); got != runtime.GOOS {
+		t.Errorf("X-OS-Type = %q, want %q", got, runtime.GOOS)
 	}
-	if got := req.Header.Get(headerOSArchKey); got != runtime.GOARCH {
-		t.Errorf("%s = %q, want %q", headerOSArchKey, got, runtime.GOARCH)
+	if got := req.Header.Get("X-OS-Arch"); got != runtime.GOARCH {
+		t.Errorf("X-OS-Arch = %q, want %q", got, runtime.GOARCH)
 	}
 
 	// Native arch is the binary arch except under emulation, where it must
 	// be arm64 (Rosetta 2 and Windows-on-ARM both emulate on arm64 hosts).
-	nativeGot := req.Header.Get(headerOSNativeArchKey)
+	nativeGot := req.Header.Get("X-OS-Native-Arch")
 	if nativeGot != runtime.GOARCH && nativeGot != "arm64" {
-		t.Errorf("%s = %q, want %q or \"arm64\"", headerOSNativeArchKey, nativeGot, runtime.GOARCH)
+		t.Errorf("X-OS-Native-Arch = %q, want %q or \"arm64\"", nativeGot, runtime.GOARCH)
 	}
 
 	// windows, darwin and linux all report a dot-separated numeric version.
 	switch runtime.GOOS {
 	case "windows", "darwin", "linux":
-		got := req.Header.Get(headerOSVersionKey)
+		got := req.Header.Get("X-OS-Version")
 		if matched := regexp.MustCompile(`^\d+(\.\d+)+`).MatchString(got); !matched {
-			t.Errorf("%s = %q, want a dot-separated numeric version", headerOSVersionKey, got)
+			t.Errorf("X-OS-Version = %q, want a dot-separated numeric version", got)
 		}
 	}
 }
