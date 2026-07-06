@@ -40,13 +40,13 @@ func TestTrimToNumericVersion(t *testing.T) {
 	}
 }
 
-func TestAddOSContextToRequestHeader(t *testing.T) {
+func TestSetOSHeaders(t *testing.T) {
 	req, err := http.NewRequest("GET", "https://example.com/check-update/test", nil)
 	if err != nil {
 		t.Fatal(err)
 	}
 
-	addOSContextToRequestHeader(req)
+	setOSHeaders(req)
 
 	if got := req.Header.Get(headerOSTypeKey); got != runtime.GOOS {
 		t.Errorf("%s = %q, want %q", headerOSTypeKey, got, runtime.GOOS)

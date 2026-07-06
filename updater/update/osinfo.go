@@ -34,10 +34,10 @@ func trimToNumericVersion(version string) string {
 	return strings.TrimRight(version[:end], ".")
 }
 
-// addOSContextToRequestHeader adds OS identity headers used by the update
-// server to select a build compatible with this host. GOOS and GOARCH are
-// sent verbatim so no OS/arch mapping code ships in the client.
-func addOSContextToRequestHeader(req *http.Request) {
+// setOSHeaders sets the OS identity headers used by the update server to
+// select a build compatible with this host. GOOS and GOARCH are sent
+// verbatim so no OS/arch mapping code ships in the client.
+func setOSHeaders(req *http.Request) {
 	req.Header.Set(headerOSTypeKey, runtime.GOOS)
 	req.Header.Set(headerOSArchKey, runtime.GOARCH)
 	// Host architecture; differs from X-OS-Arch when running under
