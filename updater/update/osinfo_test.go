@@ -30,6 +30,13 @@ func TestAddOSContextToRequestHeader(t *testing.T) {
 		t.Errorf("%s = %q, want %q", headerOSArchKey, got, runtime.GOARCH)
 	}
 
+	// Native arch is the binary arch except under emulation, where it must
+	// be arm64 (Rosetta 2 and Windows-on-ARM both emulate on arm64 hosts).
+	nativeGot := req.Header.Get(headerOSNativeArchKey)
+	if nativeGot != runtime.GOARCH && nativeGot != "arm64" {
+		t.Errorf("%s = %q, want %q or \"arm64\"", headerOSNativeArchKey, nativeGot, runtime.GOARCH)
+	}
+
 	// windows, darwin and linux all report a dot-separated numeric version.
 	switch runtime.GOOS {
 	case "windows", "darwin", "linux":

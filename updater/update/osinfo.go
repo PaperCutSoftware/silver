@@ -14,9 +14,10 @@ import (
 )
 
 const (
-	headerOSTypeKey    string = "X-OS-Type"
-	headerOSVersionKey string = "X-OS-Version"
-	headerOSArchKey    string = "X-OS-Arch"
+	headerOSTypeKey       string = "X-OS-Type"
+	headerOSVersionKey    string = "X-OS-Version"
+	headerOSArchKey       string = "X-OS-Arch"
+	headerOSNativeArchKey string = "X-OS-Native-Arch"
 )
 
 // addOSContextToRequestHeader adds OS identity headers used by the update
@@ -25,6 +26,9 @@ const (
 func addOSContextToRequestHeader(req *http.Request) {
 	req.Header.Set(headerOSTypeKey, runtime.GOOS)
 	req.Header.Set(headerOSArchKey, runtime.GOARCH)
+	// Host architecture; differs from X-OS-Arch when running under
+	// emulation (Rosetta 2, Windows-on-ARM).
+	req.Header.Set(headerOSNativeArchKey, nativeArch())
 	// Best effort: an unknown OS version is better than a failed update check.
 	if version, err := osVersion(); err == nil && version != "" {
 		req.Header.Set(headerOSVersionKey, version)
