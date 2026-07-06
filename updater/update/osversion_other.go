@@ -10,8 +10,13 @@
 
 package update
 
-// osVersion is unknown on unsupported platforms; the X-OS-Version header is
-// simply omitted.
+import (
+	"fmt"
+	"runtime"
+)
+
+// osVersion has no detection on this platform; the caller omits the
+// X-OS-Version header on error.
 func osVersion() (string, error) {
-	return "", nil
+	return "", fmt.Errorf("no OS version detection support for %s", runtime.GOOS)
 }
