@@ -8,9 +8,19 @@
 
 package update
 
-import "syscall"
+import (
+	"errors"
+	"syscall"
+)
 
 // osVersion returns the macOS product version (e.g. "14.5").
 func osVersion() (string, error) {
-	return syscall.Sysctl("kern.osproductversion")
+	version, err := syscall.Sysctl("kern.osproductversion")
+	if err != nil {
+		return "", err
+	}
+	if version == "" {
+		return "", errors.New("kern.osproductversion is empty")
+	}
+	return version, nil
 }

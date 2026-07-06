@@ -44,7 +44,7 @@ func addOSContextToRequestHeader(req *http.Request) {
 	// emulation (Rosetta 2, Windows-on-ARM).
 	req.Header.Set(headerOSNativeArchKey, nativeArch())
 	// Best effort: an unknown OS version is better than a failed update check.
-	if version, err := osVersion(); err == nil && version != "" {
+	if version, err := osVersion(); err == nil {
 		req.Header.Set(headerOSVersionKey, version)
 	}
 }

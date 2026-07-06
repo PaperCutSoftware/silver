@@ -8,7 +8,11 @@
 
 package update
 
-import "golang.org/x/sys/unix"
+import (
+	"fmt"
+
+	"golang.org/x/sys/unix"
+)
 
 // osVersion returns the Linux kernel version (e.g. "5.15.0") via uname,
 // trimming distro suffixes from the release string ("5.15.0-91-generic").
@@ -17,5 +21,10 @@ func osVersion() (string, error) {
 	if err := unix.Uname(&uts); err != nil {
 		return "", err
 	}
-	return trimToNumericVersion(unix.ByteSliceToString(uts.Release[:])), nil
+	release := unix.ByteSliceToString(uts.Release[:])
+	version := trimToNumericVersion(release)
+	if version == "" {
+		return "", fmt.Errorf("unrecognized kernel release %q", release)
+	}
+	return version, nil
 }
