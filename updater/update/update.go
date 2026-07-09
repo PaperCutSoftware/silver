@@ -39,7 +39,7 @@ func Check(updateURL string, currentVer string, publicKey string) (*UpgradeInfo,
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "Update Check")
+	req.Header.Set("User-Agent", userAgent())
 	addIDProfileToRequestHeader(req)
 	setOSHeaders(req)
 

@@ -16,10 +16,10 @@ import (
 )
 
 const (
-	headerOSTypeKey       string = "X-OS-Type"
-	headerOSVersionKey    string = "X-OS-Version"
-	headerOSArchKey       string = "X-OS-Arch"
-	headerOSNativeArchKey string = "X-OS-Native-Arch"
+	headerOSTypeKey     string = "X-OS-Type"
+	headerOSVersionKey  string = "X-OS-Version"
+	headerOSArchKey     string = "X-OS-Arch"
+	headerBinaryArchKey string = "X-Binary-Arch"
 )
 
 // trimToNumericVersion trims a version string to its leading dot-separated
@@ -36,14 +36,16 @@ func trimToNumericVersion(version string) string {
 }
 
 // setOSHeaders sets the OS identity headers used by the update server to
-// select a build compatible with this host. GOOS and GOARCH are sent
-// verbatim so no OS/arch mapping code ships in the client.
+// select a build compatible with this host. The server keys build selection
+// on X-OS-Type + X-OS-Arch; X-Binary-Arch reports what the running updater
+// was compiled for, which differs from X-OS-Arch under emulation (Rosetta 2,
+// Windows-on-ARM) so those installs migrate to native builds.
 func setOSHeaders(req *http.Request) {
 	req.Header.Set(headerOSTypeKey, runtime.GOOS)
-	req.Header.Set(headerOSArchKey, runtime.GOARCH)
-	// Host architecture; differs from X-OS-Arch when running under
-	// emulation (Rosetta 2, Windows-on-ARM).
-	req.Header.Set(headerOSNativeArchKey, nativeArch())
+	// Best-effort host architecture: detects Rosetta 2 and Windows-on-ARM
+	// emulation; on other platforms falls back to the binary's arch.
+	req.Header.Set(headerOSArchKey, nativeArch())
+	req.Header.Set(headerBinaryArchKey, runtime.GOARCH)
 	// Best effort: an unknown OS version is better than a failed update check.
 	if version, err := osVersion(); err == nil {
 		req.Header.Set(headerOSVersionKey, version)

@@ -17,6 +17,16 @@ import (
 	"github.com/papercutsoftware/silver/updater/update"
 )
 
+func TestUserAgent(t *testing.T) {
+	got := update.UserAgent()
+
+	// "silver-updater" alone (no VCS stamp, e.g. test binaries), or
+	// "silver-updater/<version>" where version is a spaceless token.
+	if matched := regexp.MustCompile(`^silver-updater(/\S+)?$`).MatchString(got); !matched {
+		t.Errorf("userAgent() = %q, want \"silver-updater\" optionally followed by /<version>", got)
+	}
+}
+
 func TestTrimToNumericVersion(t *testing.T) {
 	tests := []struct {
 		name  string
@@ -53,15 +63,15 @@ func TestSetOSHeaders(t *testing.T) {
 	if got := req.Header.Get("X-OS-Type"); got != runtime.GOOS {
 		t.Errorf("X-OS-Type = %q, want %q", got, runtime.GOOS)
 	}
-	if got := req.Header.Get("X-OS-Arch"); got != runtime.GOARCH {
-		t.Errorf("X-OS-Arch = %q, want %q", got, runtime.GOARCH)
+	if got := req.Header.Get("X-Binary-Arch"); got != runtime.GOARCH {
+		t.Errorf("X-Binary-Arch = %q, want %q", got, runtime.GOARCH)
 	}
 
-	// Native arch is the binary arch except under emulation, where it must
+	// OS arch is the binary arch except under emulation, where it must
 	// be arm64 (Rosetta 2 and Windows-on-ARM both emulate on arm64 hosts).
-	nativeGot := req.Header.Get("X-OS-Native-Arch")
-	if nativeGot != runtime.GOARCH && nativeGot != "arm64" {
-		t.Errorf("X-OS-Native-Arch = %q, want %q or \"arm64\"", nativeGot, runtime.GOARCH)
+	osArchGot := req.Header.Get("X-OS-Arch")
+	if osArchGot != runtime.GOARCH && osArchGot != "arm64" {
+		t.Errorf("X-OS-Arch = %q, want %q or \"arm64\"", osArchGot, runtime.GOARCH)
 	}
 
 	// windows, darwin and linux all report a dot-separated numeric version.

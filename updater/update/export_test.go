@@ -12,4 +12,5 @@ package update
 var (
 	SetOSHeaders         = setOSHeaders
 	TrimToNumericVersion = trimToNumericVersion
+	UserAgent            = userAgent
 )
