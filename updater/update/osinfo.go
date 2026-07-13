@@ -25,8 +25,6 @@ const (
 // trimToNumericVersion trims a version string to its leading dot-separated
 // numeric part, dropping suffixes like the distro patch, kernel flavor and
 // architecture in a Linux kernel release ("5.15.0-91-generic" → "5.15.0").
-// The update server compares versions segment-by-segment numerically, so
-// only digits and dots may be sent.
 func trimToNumericVersion(version string) string {
 	end := 0
 	for end < len(version) && (version[end] == '.' || ('0' <= version[end] && version[end] <= '9')) {
@@ -35,11 +33,10 @@ func trimToNumericVersion(version string) string {
 	return strings.TrimRight(version[:end], ".")
 }
 
-// setOSHeaders sets the OS identity headers used by the update server to
-// select a build compatible with this host. The server keys build selection
-// on X-OS-Type + X-OS-Arch; X-Binary-Arch reports what the running updater
-// was compiled for, which differs from X-OS-Arch under emulation (Rosetta 2,
-// Windows-on-ARM) so those installs migrate to native builds.
+// setOSHeaders sets headers identifying this host's OS and architecture.
+// X-OS-Type and X-OS-Arch describe the host itself; X-Binary-Arch reports
+// what the running updater was compiled for, which differs from X-OS-Arch
+// under emulation (Rosetta 2, Windows-on-ARM).
 func setOSHeaders(req *http.Request) {
 	req.Header.Set(headerOSTypeKey, runtime.GOOS)
 	// Best-effort host architecture: detects Rosetta 2 and Windows-on-ARM
