@@ -1,7 +1,7 @@
 // SILVER - Service Wrapper
 // Auto Updater
 //
-// Copyright (c) 2014-2021 PaperCut Software http://www.papercut.com/
+// Copyright (c) 2014-2026 PaperCut Software http://www.papercut.com/
 // Use of this source code is governed by an MIT or GPL Version 2 license.
 // See the project's LICENSE file for more information.
 //
@@ -39,8 +39,9 @@ func Check(updateURL string, currentVer string, publicKey string) (*UpgradeInfo,
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", "Update Check")
+	req.Header.Set("User-Agent", userAgent())
 	addIDProfileToRequestHeader(req)
+	setOSHeaders(req)
 
 	res, err := client.Do(req)
 	if err != nil {
