@@ -57,6 +57,7 @@ func usage() {
 func main() {
 	goos := flag.String("goos", runtime.GOOS, "Specify target operating system for cross compilation")
 	goarch := flag.String("goarch", runtime.GOARCH, "Specify target architecture for cross compilation")
+	versionFlag := flag.String("version", "", "Specify version string to inject into binaries")
 	flag.Parse()
 
 	_ = os.Setenv("GOOS", *goos)
@@ -74,9 +75,11 @@ func main() {
 		action = flag.Arg(0)
 	}
 
+	ver := resolveVersion(*versionFlag)
+
 	switch action {
 	case "all":
-		buildAll()
+		buildAll(ver)
 	case "test":
 		testAll()
 	default:
@@ -84,19 +87,37 @@ func main() {
 	}
 }
 
-func buildAll() {
+// resolveVersion resolves the build version string using the following priority order:
+// 1. Explicit CLI flag (e.g. go run make.go -version 1.8.0).
+// 2. CI environment variables (SILVER_VERSION or SILVER_RELEASE_TAG).
+// 3. Fallback "dev" for unflagged local development builds.
+func resolveVersion(flagVersion string) string {
+	if flagVersion != "" {
+		return strings.TrimPrefix(flagVersion, "v")
+	}
+	if v := os.Getenv("SILVER_VERSION"); v != "" {
+		return strings.TrimPrefix(v, "v")
+	}
+	if tag := os.Getenv("SILVER_RELEASE_TAG"); tag != "" {
+		return strings.TrimPrefix(tag, "v")
+	}
+	return "dev"
+}
+
+func buildAll(ver string) {
 	makeDir(buildOutputDir)
 
 	goos := os.Getenv("GOOS")
 	goarch := os.Getenv("GOARCH")
+	ldflags := fmt.Sprintf("-s -w -X main.Version=%s", ver)
 
-	fmt.Printf("Building binaries for %s/%s ...\n", goos, goarch)
+	fmt.Printf("Building binaries for %s/%s (version %s) ...\n", goos, goarch, ver)
 	_ = runCmd("go", "build", "-ldflags", "-s -w", "-o", makeOutputPath(buildOutputDir, "updater"), rootNamespace+"/updater")
-	_ = runCmd("go", "build", "-ldflags", "-s -w", "-o", makeOutputPath(buildOutputDir, "service"), rootNamespace+"/service")
+	_ = runCmd("go", "build", "-ldflags", ldflags, "-o", makeOutputPath(buildOutputDir, "service"), rootNamespace+"/service")
 	_ = runCmd("go", "build", "-ldflags", "", "-o", makeOutputPath(buildOutputDir, "jsonsig"), rootNamespace+"/lib/jsonsig/cmd")
-	_ = runCmd("go", "build", "-tags", "nohttp", "-ldflags", "-s -w", "-o", makeOutputPath(buildOutputDir, "service-no-http"), rootNamespace+"/service")
+	_ = runCmd("go", "build", "-tags", "nohttp", "-ldflags", ldflags, "-o", makeOutputPath(buildOutputDir, "service-no-http"), rootNamespace+"/service")
 	if goos == "windows" {
-		_ = runCmd("go", "build", "-tags", "nohttp", "-ldflags", "-s -w  -H=windowsgui", "-o", makeOutputPath(buildOutputDir, "service-no-window"), rootNamespace+"/service")
+		_ = runCmd("go", "build", "-tags", "nohttp", "-ldflags", ldflags+" -H=windowsgui", "-o", makeOutputPath(buildOutputDir, "service-no-window"), rootNamespace+"/service")
 		_ = runCmd("go", "build", "-ldflags", "-s -w -H=windowsgui", "-o", makeOutputPath(buildOutputDir, "updater-no-window"), rootNamespace+"/updater")
 	}
 

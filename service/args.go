@@ -29,6 +29,7 @@ var validArgs = []string{
 	"validate",
 	"run",
 	"command",
+	"version",
 }
 
 func isArgsValid(args []string) bool {
@@ -51,6 +52,7 @@ var aliases = map[string]string{
 	"delete": "uninstall",
 	"check":  "validate",
 	"test":   "validate",
+	"v":      "version",
 }
 
 func normalizeArgs(args []string) []string {
