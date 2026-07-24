@@ -33,6 +33,7 @@ const (
 	headerProfileTimezoneKey string = "X-profile-timezone"
 )
 
+// Deprecated: Profile represents updater-profile.conf, which is deprecated in favor of updater.conf.
 type Profile struct {
 	Id      string `json:"id"`
 	Channel string `json:"channel"`
@@ -65,6 +66,7 @@ func saveProfile(prf *Profile) (err error) {
 	return ioutil.WriteFile(fn, data, 0600)
 }
 
+// Deprecated: SetRandomProfileID modifies updater-profile.conf, which is deprecated in favor of updater.conf.
 func SetRandomProfileID() int {
 	strRand, err := generateRandomIDString()
 	if err != nil {
@@ -74,6 +76,7 @@ func SetRandomProfileID() int {
 	return SetProfileID(strRand)
 }
 
+// Deprecated: SetProfileID modifies updater-profile.conf, which is deprecated in favor of updater.conf.
 func SetProfileID(id string) int {
 	prf := Profile{}
 	err := loadProfile(&prf)
@@ -90,6 +93,7 @@ func SetProfileID(id string) int {
 	return 0
 }
 
+// Deprecated: SetProfileChannel modifies updater-profile.conf, which is deprecated in favor of updater.conf.
 func SetProfileChannel(channel string) int {
 	prf := Profile{}
 	err := loadProfile(&prf)

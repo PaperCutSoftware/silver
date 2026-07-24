@@ -128,13 +128,27 @@ func download(url string) (string, error) {
 		return "", err
 	}
 
-	resp, err := http.Get(url)
+	req, err := http.NewRequest("GET", url, nil)
+	if err != nil {
+		_ = outfile.Close()
+		_ = os.Remove(outfile.Name())
+		return "", err
+	}
+	update.AddCustomHeaders(req)
+
+	resp, err := (&http.Client{}).Do(req)
 	if err != nil {
 		_ = outfile.Close()
 		_ = os.Remove(outfile.Name())
 		return "", err
 	}
 	defer resp.Body.Close()
+
+	if resp.StatusCode >= http.StatusBadRequest {
+		_ = outfile.Close()
+		_ = os.Remove(outfile.Name())
+		return "", fmt.Errorf("download HTTP error %d: %s", resp.StatusCode, resp.Status)
+	}
 
 	_, err = io.Copy(outfile, resp.Body)
 	if err != nil {
