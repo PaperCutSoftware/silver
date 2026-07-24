@@ -122,40 +122,42 @@ func upgradeComplete(upgradeInfo *update.UpgradeInfo) {
 	_ = ioutil.WriteFile(config.ReloadFileName, []byte(""), 0644)
 }
 
-func download(url string) (string, error) {
+func download(url string) (fn string, err error) {
 	outfile, err := ioutil.TempFile("", "update-")
 	if err != nil {
 		return "", err
 	}
+	// Close always. Remove only on error. This runs after every return
+	// below, so no error path needs to repeat that cleanup itself.
+	defer func() {
+		_ = outfile.Close()
+		if err != nil {
+			_ = os.Remove(outfile.Name())
+		}
+	}()
 
 	req, err := http.NewRequest("GET", url, nil)
 	if err != nil {
-		_ = outfile.Close()
-		_ = os.Remove(outfile.Name())
 		return "", err
 	}
+	// AddCustomHeaders sends every configured header to this URL.
+	// The URL comes from the manifest and may be unverified if no
+	// public key is set. Redirects can also forward these headers
+	// to a different host. Do not put secrets in updater.conf.
 	update.AddCustomHeaders(req)
 
 	resp, err := (&http.Client{}).Do(req)
 	if err != nil {
-		_ = outfile.Close()
-		_ = os.Remove(outfile.Name())
 		return "", err
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= http.StatusBadRequest {
-		_ = outfile.Close()
-		_ = os.Remove(outfile.Name())
 		return "", fmt.Errorf("download HTTP error %d: %s", resp.StatusCode, resp.Status)
 	}
 
-	_, err = io.Copy(outfile, resp.Body)
-	if err != nil {
-		_ = outfile.Close()
-		_ = os.Remove(outfile.Name())
+	if _, err = io.Copy(outfile, resp.Body); err != nil {
 		return "", err
 	}
-	_ = outfile.Close()
 	return outfile.Name(), nil
 }

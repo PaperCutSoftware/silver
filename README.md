@@ -255,7 +255,7 @@ You can define a series of operations to run after the update is extracted:
 
 ### **Custom HTTP Headers**
 
-The `updater` can attach operator-defined HTTP headers to manifest check and package download requests. This allows Silver to work behind infrastructure that expects custom headers, such as routing tags for a multi-tenant CDN or enterprise API gateway.
+The `updater` can attach operator-defined HTTP headers to manifest check and package download requests. This allows Silver to work behind infrastructure that expects custom headers. Examples: routing tags for a multi-tenant CDN, or an enterprise API gateway.
 
 Headers are read from a JSON file named `updater.conf` located alongside the `updater` binary:
 
@@ -269,10 +269,10 @@ Headers are read from a JSON file named `updater.conf` located alongside the `up
 ```
 
 * If `updater.conf` is missing or invalid, the updater logs a warning and fails open. It proceeds without custom headers and never blocks an update check.  
-* Header names and values are validated against [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html#fields). Individual values are capped at 4 KB, headers are capped at 20 per file, and the file size is capped at 64 KB.  
+* Header names and values are validated against [RFC 9110](https://www.rfc-editor.org/rfc/rfc9110.html#fields). Individual values are capped at 4 KB. Headers are capped at 20 per file. The file size is capped at 64 KB.  
 * Custom headers can override legacy `X-profile-identity` and `X-profile-channel` headers from `updater-profile.conf`. They cannot override host headers (`User-Agent`, `X-OS-*`, `X-Binary-Arch`, `X-profile-timezone`).  
 
-**Note**: Avoid placing credentials (such as an `Authorization` token) in `updater.conf`. The file is stored in plaintext on disk. Custom headers are also forwarded on HTTP redirects, including cross-domain redirects.
+**Note**: Avoid placing credentials (such as an `Authorization` token) in `updater.conf`. The file is stored in plaintext on disk. Custom headers are also forwarded on HTTP redirects. That includes cross-domain redirects.
 
 ## **A Robust Upgrade Strategy**
 
@@ -426,7 +426,7 @@ While delivering manifests over a secure HTTPS connection is a fundamental first
 * `updater.exe profile-set-random-id`: Sets a unique random ID for this installation, sent to the update server.  
 * `updater.exe profile-set-channel <channel-name>`: Sets the update channel (e.g., `beta`, `stable`), also sent to the update server for targeted rollouts.
 
-These commands write to `updater-profile.conf`, which is deprecated in favour of `updater.conf` (see *Custom HTTP Headers* above) but still supported for backward compatibility.
+These commands write to `updater-profile.conf`. That file is deprecated in favour of `updater.conf` (see *Custom HTTP Headers* above). It is still supported for backward compatibility.
 
 ---
 

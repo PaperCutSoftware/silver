@@ -121,6 +121,31 @@ func TestValidateHeaders(t *testing.T) {
 		}
 	})
 
+	t.Run("drops hop-by-hop headers Go would ignore anyway", func(t *testing.T) {
+		got := update.ValidateHeaders(map[string]string{
+			"Host":              "evil.example.com",
+			"Content-Length":    "0",
+			"Transfer-Encoding": "chunked",
+			"Connection":        "close",
+		})
+		if len(got) != 0 {
+			t.Errorf("got %#v, want hop-by-hop headers to be dropped", got)
+		}
+	})
+
+	t.Run("dedupes case-variant duplicate keys deterministically", func(t *testing.T) {
+		got := update.ValidateHeaders(map[string]string{
+			"X-Foo": "upper-value",
+			"x-foo": "lower-value",
+		})
+		if len(got) != 1 {
+			t.Fatalf("got %#v, want exactly one surviving entry", got)
+		}
+		if got["X-Foo"] != "upper-value" {
+			t.Errorf("got %#v, want the alphabetically-first key to win", got)
+		}
+	})
+
 	t.Run("allows overriding deprecated profile headers", func(t *testing.T) {
 		got := update.ValidateHeaders(map[string]string{
 			"X-Profile-Identity": "custom-identity",
@@ -131,14 +156,30 @@ func TestValidateHeaders(t *testing.T) {
 		}
 	})
 
-	t.Run("caps total header count", func(t *testing.T) {
+	t.Run("caps total header count deterministically", func(t *testing.T) {
 		raw := make(map[string]string, update.MaxCustomHeaders+5)
 		for i := 0; i < update.MaxCustomHeaders+5; i++ {
 			raw[strings.Repeat("X", i+1)] = "v"
 		}
-		got := update.ValidateHeaders(raw)
-		if len(got) != update.MaxCustomHeaders {
-			t.Errorf("got %d headers, want %d", len(got), update.MaxCustomHeaders)
+
+		// Run twice. Map iteration order is random.
+		// This catches a regression back to non-deterministic capping.
+		first := update.ValidateHeaders(raw)
+		second := update.ValidateHeaders(raw)
+
+		if len(first) != update.MaxCustomHeaders {
+			t.Fatalf("got %d headers, want %d", len(first), update.MaxCustomHeaders)
+		}
+		for key := range first {
+			if _, ok := second[key]; !ok {
+				t.Errorf("header %q survived one run but not another, capping is not deterministic", key)
+			}
+		}
+
+		// Keys are "X", "XX", "XXX", ... "XXXXX...". Sorted, the shortest
+		// keys always win. "X" through the 20-char key must survive.
+		if _, ok := first[strings.Repeat("X", update.MaxCustomHeaders)]; !ok {
+			t.Errorf("expected the shortest %d keys to survive, got %#v", update.MaxCustomHeaders, first)
 		}
 	})
 }
