@@ -52,13 +52,13 @@ func printVersion() {
 
 func run() (exitCode int) {
 	// Parse CLI args early to support diagnostic version command without requiring a config file.
-	action, actionArgs, err := parse(os.Args)
-	if err == nil && action == "version" {
+	action, actionArgs, parseErr := parse(os.Args)
+	if parseErr == nil && action == "version" {
 		printVersion()
 		return 0
 	}
 
-	err = os.Chdir(exeFolder())
+	err := os.Chdir(exeFolder())
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "ERROR: Unable to set working directory: %v\n", err)
 		return 1
@@ -72,7 +72,7 @@ func run() (exitCode int) {
 		_, _ = fmt.Fprintf(os.Stderr, "ERROR: Invalid config - %v\n", err)
 		return 1
 	}
-	if err != nil {
+	if parseErr != nil {
 		printUsage(ctx.conf.ServiceDescription.DisplayName, ctx.conf.ServiceDescription.Description)
 		return 1
 	}
