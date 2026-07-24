@@ -87,19 +87,12 @@ func main() {
 	}
 }
 
-// resolveVersion resolves the build version string using the following priority order:
-// 1. Explicit CLI flag (e.g. go run make.go -version 1.8.0).
-// 2. CI environment variables (SILVER_VERSION or SILVER_RELEASE_TAG).
-// 3. Fallback "dev" for unflagged local development builds.
+// resolveVersion resolves the build version string from the explicit CLI flag
+// (e.g. go run make.go -version 1.8.0), falling back to "dev" for unflagged
+// local development builds.
 func resolveVersion(flagVersion string) string {
 	if flagVersion != "" {
-		return strings.TrimPrefix(flagVersion, "v")
-	}
-	if v := os.Getenv("SILVER_VERSION"); v != "" {
-		return strings.TrimPrefix(v, "v")
-	}
-	if tag := os.Getenv("SILVER_RELEASE_TAG"); tag != "" {
-		return strings.TrimPrefix(tag, "v")
+		return strings.TrimPrefix(flagVersion, "v") // Strip leading "v" so callers can pass git tag (e.g. v1.8.0) directly.
 	}
 	return "dev"
 }
