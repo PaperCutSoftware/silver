@@ -52,7 +52,6 @@ var aliases = map[string]string{
 	"delete": "uninstall",
 	"check":  "validate",
 	"test":   "validate",
-	"v":      "version",
 }
 
 func normalizeArgs(args []string) []string {

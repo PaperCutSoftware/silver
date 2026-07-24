@@ -51,7 +51,7 @@ func printVersion() {
 }
 
 func run() (exitCode int) {
-	// Parse CLI args early to support diagnostic version flag (-v) without requiring a config file.
+	// Parse CLI args early to support diagnostic version command without requiring a config file.
 	action, actionArgs, err := parse(os.Args)
 	if err == nil && action == "version" {
 		printVersion()
@@ -176,7 +176,7 @@ func printUsage(svcDisplayName, svcDesc string) {
 	fmt.Printf("  validate  - Test the configuration file.\n")
 	fmt.Printf("  run       - Run service on in command-line mode.\n")
 	fmt.Printf("  command   - Run a command [command-name].\n")
-	fmt.Printf("  version   - Display version and target OS/architecture (-v).\n")
+	fmt.Printf("  version   - Display version and target OS/architecture.\n")
 	fmt.Printf("  help      - This usage message.\n")
 }
 
