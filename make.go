@@ -92,7 +92,7 @@ func main() {
 // local development builds.
 func resolveVersion(flagVersion string) string {
 	if flagVersion != "" {
-		return strings.TrimPrefix(flagVersion, "v") // Strip leading "v" so callers can pass git tag (e.g. v1.8.0) directly.
+		return flagVersion
 	}
 	return "dev"
 }
