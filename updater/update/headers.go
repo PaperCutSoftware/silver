@@ -10,6 +10,7 @@ package update
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -38,17 +39,22 @@ const (
 // Go's net/http manages these itself. It ignores whatever is set on
 // req.Header for them. Allowing them through would silently do nothing.
 // That's a confusing trap for an operator configuring updater.conf.
-var systemHeaderKeys = map[string]bool{
-	textproto.CanonicalMIMEHeaderKey(headerUserAgentKey):       true,
-	textproto.CanonicalMIMEHeaderKey(headerProfileTimezoneKey): true,
-	textproto.CanonicalMIMEHeaderKey(headerOSTypeKey):          true,
-	textproto.CanonicalMIMEHeaderKey(headerOSVersionKey):       true,
-	textproto.CanonicalMIMEHeaderKey(headerOSArchKey):          true,
-	textproto.CanonicalMIMEHeaderKey(headerBinaryArchKey):      true,
-	textproto.CanonicalMIMEHeaderKey("Host"):                   true,
-	textproto.CanonicalMIMEHeaderKey("Content-Length"):         true,
-	textproto.CanonicalMIMEHeaderKey("Transfer-Encoding"):      true,
-	textproto.CanonicalMIMEHeaderKey("Connection"):             true,
+var systemHeaderKeys = map[string]struct{}{
+	textproto.CanonicalMIMEHeaderKey(headerUserAgentKey):       {},
+	textproto.CanonicalMIMEHeaderKey(headerProfileTimezoneKey): {},
+	textproto.CanonicalMIMEHeaderKey(headerOSTypeKey):          {},
+	textproto.CanonicalMIMEHeaderKey(headerOSVersionKey):       {},
+	textproto.CanonicalMIMEHeaderKey(headerOSArchKey):          {},
+	textproto.CanonicalMIMEHeaderKey(headerBinaryArchKey):      {},
+	textproto.CanonicalMIMEHeaderKey("Host"):                   {},
+	textproto.CanonicalMIMEHeaderKey("Content-Length"):         {},
+	textproto.CanonicalMIMEHeaderKey("Transfer-Encoding"):      {},
+	textproto.CanonicalMIMEHeaderKey("Connection"):             {},
+}
+
+func isSystemHeader(canonical string) bool {
+	_, ok := systemHeaderKeys[canonical]
+	return ok
 }
 
 type headersFile struct {
@@ -63,7 +69,7 @@ type headersFile struct {
 func AddCustomHeaders(req *http.Request) {
 	headers, err := loadCustomHeaders()
 	if err != nil {
-		if os.IsNotExist(err) {
+		if errors.Is(err, os.ErrNotExist) {
 			fmt.Printf("%s not found. Proceeding without custom headers.\n", headersFileName)
 		} else {
 			fmt.Printf("Couldn't load custom headers: %v.\n", err)
@@ -143,7 +149,7 @@ func validateHeaders(raw map[string]string) map[string]string {
 			fmt.Printf("Ignoring custom header %q. Value exceeds %d bytes.\n", key, maxHeaderValueBytes)
 		case !isValidHeaderFieldValue(value):
 			fmt.Printf("Ignoring custom header %q. Invalid header field value.\n", key)
-		case systemHeaderKeys[canonical]:
+		case isSystemHeader(canonical):
 			fmt.Printf("Ignoring custom header %q. Reserved for internal use.\n", key)
 		case seenCanonical[canonical]:
 			fmt.Printf("Ignoring custom header %q. Duplicate of an already-configured header.\n", key)
@@ -159,13 +165,13 @@ func getHeadersFileName() (string, error) {
 	return fileNextToExecutable(headersFileName)
 }
 
-// headerFieldNameRE matches a non-empty RFC 9110 token.
+// reHeaderFieldName matches a non-empty RFC 9110 token.
 // That's the valid form for an HTTP field-name.
 // See https://www.rfc-editor.org/rfc/rfc9110.html#section-5.6.2
-var headerFieldNameRE = regexp.MustCompile(`^[A-Za-z0-9!#$%&'*+\-.^_` + "`" + `|~]+$`)
+var reHeaderFieldName = regexp.MustCompile("^[\\w!#$%&'*+\\-.^`|~]+$")
 
 func isValidHeaderFieldName(s string) bool {
-	return headerFieldNameRE.MatchString(s)
+	return reHeaderFieldName.MatchString(s)
 }
 
 // isValidHeaderFieldValue reports whether s is a valid RFC 9110 field-value.
