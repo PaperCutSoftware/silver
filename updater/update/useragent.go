@@ -10,6 +10,8 @@ package update
 
 import "runtime/debug"
 
+const headerUserAgentKey = "User-Agent"
+
 // userAgent returns the User-Agent for update check requests, e.g.
 // "silver-updater/v1.6.1". The version is stamped automatically by the Go
 // toolchain from the module's VCS tag; builds without VCS information
