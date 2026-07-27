@@ -11,6 +11,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"time"
@@ -42,7 +43,21 @@ func main() {
 	os.Exit(run())
 }
 
+// Version represents the build version string, set at build time via -ldflags "-X main.Version=x.y.z".
+var Version = "dev"
+
+func printVersion() {
+	fmt.Printf("silver version %s %s/%s\n", Version, runtime.GOOS, runtime.GOARCH)
+}
+
 func run() (exitCode int) {
+	// Parse CLI args early to support diagnostic version command without requiring a config file.
+	action, actionArgs, parseErr := parse(os.Args)
+	if parseErr == nil && action == "version" {
+		printVersion()
+		return 0
+	}
+
 	err := os.Chdir(exeFolder())
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "ERROR: Unable to set working directory: %v\n", err)
@@ -57,9 +72,7 @@ func run() (exitCode int) {
 		_, _ = fmt.Fprintf(os.Stderr, "ERROR: Invalid config - %v\n", err)
 		return 1
 	}
-
-	action, actionArgs, err := parse(os.Args)
-	if err != nil {
+	if parseErr != nil {
 		printUsage(ctx.conf.ServiceDescription.DisplayName, ctx.conf.ServiceDescription.Description)
 		return 1
 	}
@@ -155,7 +168,7 @@ func printUsage(svcDisplayName, svcDesc string) {
 		serviceName())
 	fmt.Printf("%s\n\n", svcDesc)
 	fmt.Printf("Usage:\n")
-	fmt.Printf("%s [install|uninstall|start|stop|command|validate|run|help] [command-name]\n", exeName())
+	fmt.Printf("%s [install|uninstall|start|stop|command|validate|run|version|help] [command-name]\n", exeName())
 	fmt.Printf("  install   - Install the service.\n")
 	fmt.Printf("  uninstall - Remove/uninstall the service.\n")
 	fmt.Printf("  start     - Start an installed service.\n")
@@ -163,6 +176,7 @@ func printUsage(svcDisplayName, svcDesc string) {
 	fmt.Printf("  validate  - Test the configuration file.\n")
 	fmt.Printf("  run       - Run service on in command-line mode.\n")
 	fmt.Printf("  command   - Run a command [command-name].\n")
+	fmt.Printf("  version   - Display version and target OS/architecture.\n")
 	fmt.Printf("  help      - This usage message.\n")
 }
 

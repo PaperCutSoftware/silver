@@ -29,6 +29,7 @@ var validArgs = []string{
 	"validate",
 	"run",
 	"command",
+	"version",
 }
 
 func isArgsValid(args []string) bool {
