@@ -16,7 +16,7 @@ Silver takes a standard command-line program — like a simple HTTP-based app or
 
 Silver is battle-tested and has been successfully used by [PaperCut Software](https://www.papercut.com/) to help manage server and desktop components for millions of laptops and servers for almost a decade.
 
-Typical usages might include:
+Typical uses might include:
 * wrapping a single Java web application
 * hosting a set of Go microservices
 * or resiliently running a native "task tray" application on startup. 
@@ -29,7 +29,7 @@ Silver is packed with features to make your application more robust and easy to 
 
 * **Cross-Platform Service Management**: Runs your app as a native service (Windows Service, macOS LaunchAgent, Linux systemd/init) using a single, consistent interface.  
 * **Process Resilience**: Automatically restarts your application services if they crash, with configurable limits (`MaxCrashCountPerHour`) and restart delays (`RestartDelaySecs`) to prevent rapid-restart CPU cycles.  
-* **Health Monitoring**: Actively monitors your application service's health via HTTP(S) pings, TCP connection checks, TCP echo checks, or by watching for file changes. It automatically detects crashes, live-lock and dead-lock situations, and restarts the service on failure.  
+* **Health Monitoring**: Actively monitors your application service's health via HTTP(S) pings, TCP connection checks, TCP echo checks, or by watching for file changes. It automatically detects crashes, livelock and deadlock situations, and restarts the service on failure.
 * **Secure Auto-Updates**: A built-in `updater` binary fetches updates from a URL, supporting:  
   * Cryptographically signed update manifests (Ed25519) for security.  
   * Update package checksum validation (SHA256).  
@@ -41,7 +41,7 @@ Silver is packed with features to make your application more robust and easy to 
   * **Scheduled Tasks**: Run recurring tasks using powerful cron syntax.  
   * **Ad-Hoc Commands**: Expose custom command-line commands in a consistent way that can be triggered from the command line.  
 * **Simple Configuration**: All behaviour is controlled by a single, comprehensive JSON configuration file.  
-* **Logging**:  Built-in centralised logging (think syslog-like) for both Silver and your application's output.  Log buffing, flushing and rotation is automatically handled.  
+* **Logging**:  Built-in centralised logging (think syslog-like) for both Silver and your application's output.  Log buffering, flushing and rotation are automatically handled.
 * **System Integration**:  
   * Automatic service installation using native OS hooks.  
   * Automatic discovery of OS system's HTTP proxy settings.  
@@ -85,7 +85,7 @@ The configuration file is the heart of Silver. Here is a comprehensive example w
 
         // Custom format for log timestamps (e.g., "2006-01-02 15:04:05.000").
         // If set, this overrides the default timestamp format. 
-        // This is in GO format, see https://pkg.go.dev/time#Layout
+        // This is in Go format; see https://pkg.go.dev/time#Layout
         "LogFileTimestampFormat": "2006-01-02 15:04:05.000000",
 
         // File to store the current main service PID.
@@ -147,7 +147,7 @@ The configuration file is the heart of Silver. Here is a comprehensive example w
         },
         {
             "Path": "${ServiceRoot}/updater.exe",
-            "Args": ["https://updates.example.com/mycoolapp/manifest.json", "--public-key=YOUR_BASE64_PUBLIC_KEY"],
+            "Args": ["--public-key=YOUR_BASE64_PUBLIC_KEY", "https://updates.example.com/mycoolapp/manifest.json"],
             "Async": true, // `true` means this runs in the background.
             "StartupDelaySecs": 60,
             "StartupRandomDelaySecs": 300 // Add a random delay to spread out update checks.
@@ -166,7 +166,7 @@ The configuration file is the heart of Silver. Here is a comprehensive example w
         {
             "Schedule": "0 0 13 * * *", // 1 PM every day
             "Path": "${ServiceRoot}/updater.exe",
-            "Args": ["https://updates.example.com/mycoolapp/manifest.json", "--public-key=YOUR_BASE64_PUBLIC_KEY"],
+            "Args": ["--public-key=YOUR_BASE64_PUBLIC_KEY", "https://updates.example.com/mycoolapp/manifest.json"],
             "StartupRandomDelaySecs": 3600,
             "TimeoutSecs": 3600
         }
@@ -373,12 +373,12 @@ While delivering manifests over a secure HTTPS connection is a fundamental first
   jsonsig sign --private-key=priv.key --input=manifest.json --output=signed-manifest.json
 ```
 
-3. **Configure the updater:** In your `service.conf`, provide the base64-encoded public key to the `updater` via the `--public-key` flag. The updater will refuse any unsigned or invalid manifest.  For example, your updater task in `service.conf` would look like this:
+3. **Configure the updater:** In your `service.conf`, provide the Base64-encoded public key to the `updater` via the `--public-key` flag. Place all command-line flags before the update URL. The updater will refuse any unsigned or invalid manifest. For example, your updater task in `service.conf` would look like this:
 ```
   {  
      "Schedule": "0 0 13 * * *",  
      "Path": "${ServiceRoot}/updater.exe",  
-     "Args": ["https://updates.example.com/mycoolapp/version-manifest.json", "--public-key=m7kb8SVfRMFcCVqm18/c+lMd5TS2btIpEhGCZa5VgrI="], 
+     "Args": ["--public-key=m7kb8SVfRMFcCVqm18/c+lMd5TS2btIpEhGCZa5VgrI=", "https://updates.example.com/mycoolapp/version-manifest.json"],
      "StartupRandomDelaySecs": 3600, 
      "TimeoutSecs": 3600 
   }
@@ -400,7 +400,7 @@ While delivering manifests over a secure HTTPS connection is a fundamental first
 
 ### **Updater (`updater.exe`)**
 
-* `updater.exe [update-url] --public-key=...`: Checks for and performs an update.  
+* `updater.exe --public-key=... [update-url]`: Checks for and performs an update. Place command-line flags before the update URL.
 * `updater.exe -v`: Displays the current version from the `.version` file.  
 * `updater.exe profile-set-random-id`: Sets a unique random ID for this installation, sent to the update server.  
 * `updater.exe profile-set-channel <channel-name>`: Sets the update channel (e.g., `beta`, `stable`), also sent to the update server for targeted rollouts.
