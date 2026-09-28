@@ -39,8 +39,13 @@ func Check(updateURL string, currentVer string, publicKey string) (*UpgradeInfo,
 	if err != nil {
 		return nil, err
 	}
-	req.Header.Set("User-Agent", userAgent())
+	// Legacy updater-profile.conf headers are set first.
+	// updater.conf is its replacement. It can override them on collision.
+	// User-Agent and the OS headers describe this binary and host itself.
+	// They are not operator data. They are set last and always win.
 	addIDProfileToRequestHeader(req)
+	AddCustomHeaders(req)
+	req.Header.Set(headerUserAgentKey, userAgent())
 	setOSHeaders(req)
 
 	res, err := client.Do(req)

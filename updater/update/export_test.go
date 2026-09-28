@@ -10,7 +10,17 @@ package update
 
 // Test-only exports for black-box tests in package update_test.
 var (
-	SetOSHeaders         = setOSHeaders
-	TrimToNumericVersion = trimToNumericVersion
-	UserAgent            = userAgent
+	SetOSHeaders              = setOSHeaders
+	TrimToNumericVersion      = trimToNumericVersion
+	UserAgent                 = userAgent
+	LoadCustomHeadersFromFile = loadCustomHeadersFromFile
+	ValidateHeaders           = validateHeaders
+	IsValidHeaderFieldName    = isValidHeaderFieldName
+	IsValidHeaderFieldValue   = isValidHeaderFieldValue
+)
+
+const (
+	MaxHeadersFileBytes = maxHeadersFileBytes
+	MaxHeaderValueBytes = maxHeaderValueBytes
+	MaxCustomHeaders    = maxCustomHeaders
 )

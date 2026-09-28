@@ -28,6 +28,7 @@ _testmain.go
 
 *.exe
 *.test
+coverage.out
 
 # Direnv stuff
 .envrc
