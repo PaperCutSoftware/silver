@@ -46,7 +46,8 @@ type ServiceConfig struct {
 	LogFileMaxSizeMb       int64
 	LogFileMaxBackupFiles  int
 	PidFile                string
-	UserLevel              bool
+	UserLevel              bool   // Deprecated: use ServiceLevel "user"
+	ServiceLevel           string // "system" (default), "allusers" or "user"
 	UserName               string
 	LogFileTimestampFormat string
 }
@@ -190,6 +191,11 @@ func (conf *Config) validate() error {
 	if conf.ServiceDescription.DisplayName == "" {
 		return fmt.Errorf("ServiceDescription.DisplayName is required configuration")
 	}
+	switch conf.ServiceConfig.ServiceLevel {
+	case "", "system", "allusers", "user":
+	default:
+		return fmt.Errorf("ServiceConfig.ServiceLevel must be one of system, allusers or user (got %q)", conf.ServiceConfig.ServiceLevel)
+	}
 	return nil
 }
 
@@ -199,6 +205,10 @@ func (conf *Config) applyDefaults() {
 	}
 	if conf.ServiceConfig.ReloadFile == "" {
 		conf.ServiceConfig.ReloadFile = ReloadFileName
+	}
+
+	if conf.ServiceConfig.ServiceLevel == "" && conf.ServiceConfig.UserLevel {
+		conf.ServiceConfig.ServiceLevel = "user"
 	}
 
 	if conf.ServiceConfig.LogFileMaxSizeMb == 0 {

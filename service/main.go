@@ -126,12 +126,15 @@ func osServiceControl(ctx *context) int {
 	}
 
 	// Setup service
+	level := service.ServiceLevel(ctx.conf.ServiceConfig.ServiceLevel)
 	svcConfig := &service.Config{
-		Name:        serviceName,
-		DisplayName: ctx.conf.ServiceDescription.DisplayName,
-		Description: ctx.conf.ServiceDescription.Description,
-		UserName:    ctx.conf.ServiceConfig.UserName,
-		Option:      service.KeyValue{"UserService": ctx.conf.ServiceConfig.UserLevel},
+		Name:         serviceName,
+		DisplayName:  ctx.conf.ServiceDescription.DisplayName,
+		Description:  ctx.conf.ServiceDescription.Description,
+		UserName:     ctx.conf.ServiceConfig.UserName,
+		ServiceLevel: level,
+		// Linux backends still read the legacy UserService option.
+		Option: service.KeyValue{"UserService": level == service.ServiceLevelUser},
 	}
 
 	osService := &osService{ctx: ctx}
@@ -168,11 +171,13 @@ func printUsage(svcDisplayName, svcDesc string) {
 		serviceName())
 	fmt.Printf("%s\n\n", svcDesc)
 	fmt.Printf("Usage:\n")
-	fmt.Printf("%s [install|uninstall|start|stop|command|validate|run|version|help] [command-name]\n", exeName())
+	fmt.Printf("%s [install|uninstall|start|stop|startall|stopall|command|validate|run|version|help] [command-name]\n", exeName())
 	fmt.Printf("  install   - Install the service.\n")
 	fmt.Printf("  uninstall - Remove/uninstall the service.\n")
 	fmt.Printf("  start     - Start an installed service.\n")
 	fmt.Printf("  stop      - Stop an installed service.\n")
+	fmt.Printf("  startall  - Start the service for every logged-in user (allusers level, root).\n")
+	fmt.Printf("  stopall   - Stop the service for every logged-in user (allusers level, root).\n")
 	fmt.Printf("  validate  - Test the configuration file.\n")
 	fmt.Printf("  run       - Run service on in command-line mode.\n")
 	fmt.Printf("  command   - Run a command [command-name].\n")
