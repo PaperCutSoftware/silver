@@ -95,6 +95,11 @@ The configuration file is the heart of Silver. Here is a comprehensive example w
         "StopFile": ".stop",     // Creating this file signals a graceful shutdown.
         "ReloadFile": ".reload", // Creating this file triggers a full restart and config reload.
 
+        // Who the service is installed for: "system" (default), "allusers"
+        // (macOS: one LaunchAgent that runs in every user's session) or "user".
+        // Replaces the deprecated "UserLevel": true, which maps to "user".
+        "ServiceLevel": "system",
+
         // Run the service as a specific user (on macOS/Linux).
         "UserName": ""
     },
