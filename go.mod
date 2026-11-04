@@ -12,4 +12,4 @@ require (
 
 require github.com/stretchr/testify v1.8.2 // indirect
 
-replace github.com/kardianos/service => github.com/PaperCutSoftware/kardianos-service v1.3.1-0.20261102001055-9ec581f4de4a
+replace github.com/kardianos/service => github.com/PaperCutSoftware/kardianos-service v1.3.1-0.20261104050420-7d10c2ee12e7
