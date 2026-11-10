@@ -117,11 +117,17 @@ func osServiceControl(ctx *context) int {
 	if logFile == "" {
 		logFile = serviceName + ".log"
 	}
+	// Log dirs a user-level service creates (e.g. under ${UserData}) must be user-only.
+	logDirPerm := os.FileMode(0o755)
+	switch service.ServiceLevel(ctx.conf.ServiceConfig.ServiceLevel) {
+	case service.ServiceLevelUser, service.ServiceLevelAllUsers:
+		logDirPerm = 0o700
+	}
 	if logFile == "os.stdout" {
 		ctx.logger = logging.NewConsoleLogger(ctx.conf.ServiceConfig.LogFileTimestampFormat)
 		ctx.errorLogger = logging.NewConsoleErrorLogger(ctx.conf.ServiceConfig.LogFileTimestampFormat)
 	} else {
-		ctx.logger = logging.NewFileLoggerWithMaxSize(logFile, ctx.conf.ServiceConfig.UserName, maxSize, ctx.conf.ServiceConfig.LogFileMaxBackupFiles, ctx.conf.ServiceConfig.LogFileTimestampFormat)
+		ctx.logger = logging.NewFileLoggerWithDirPerm(logFile, ctx.conf.ServiceConfig.UserName, maxSize, ctx.conf.ServiceConfig.LogFileMaxBackupFiles, ctx.conf.ServiceConfig.LogFileTimestampFormat, logDirPerm)
 		ctx.errorLogger = ctx.logger // use the same output for both stdout and errors
 	}
 
