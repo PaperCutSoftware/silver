@@ -79,6 +79,8 @@ The configuration file is the heart of Silver. Here is a comprehensive example w
     // Global settings for the Silver service wrapper itself.
     "ServiceConfig": {
         // Log file for Silver's own output, AND your Services.
+        // Missing parent directories are created. For a "user"/"allusers" service, which
+        // can't write to an admin-owned install dir, use "${UserData}/logs/${ServiceName}.log".
         "LogFile": "${ServiceRoot}/${ServiceName}.log",
         "LogFileMaxSizeMb": 50,
         "LogFileMaxBackupFiles": 5,
@@ -94,6 +96,11 @@ The configuration file is the heart of Silver. Here is a comprehensive example w
         // Optional files used to signal the service.
         "StopFile": ".stop",     // Creating this file signals a graceful shutdown.
         "ReloadFile": ".reload", // Creating this file triggers a full restart and config reload.
+
+        // Who the service is installed for: "system" (default), "allusers"
+        // (macOS: one LaunchAgent that runs in every user's session) or "user".
+        // Replaces the deprecated "UserLevel": true, which maps to "user".
+        "ServiceLevel": "system",
 
         // Run the service as a specific user (on macOS/Linux).
         "UserName": ""
@@ -186,7 +193,13 @@ The configuration file is the heart of Silver. Here is a comprehensive example w
 
 ### **Configuration Details**
 
-* **Variable Substitution**: `${ServiceName}` and `${ServiceRoot}` are automatically replaced with the service's name and its root directory.  
+* **Variable Substitution**: `${ServiceName}` and `${ServiceRoot}` are automatically replaced with the service's name and its root directory.  `${UserData}` is replaced with the data directory of the user Silver is running as, for per-user state of `"user"`/`"allusers"` services (e.g. `"Args": ["-dataDir=${UserData}"]`):
+  * Windows: `%LOCALAPPDATA%\<ServiceName>` (falls back to `%APPDATA%`)
+  * macOS: `~/Library/Application Support/<ServiceName>`
+  * Linux: `$XDG_DATA_HOME/<ServiceName>`, or `~/.local/share/<ServiceName>` if `XDG_DATA_HOME` is unset or not absolute
+
+  The home directory comes from the running user's account, not `$HOME`. Variables are substituted in the main config and in `Include` files. A config that uses `${UserData}` fails to load if the directory can't be resolved; configs that don't use it are unaffected. The updater leaves `${UserData}` unresolved.  
+* **Log File**: Missing parent directories of `LogFile` are created at startup: `0700` (owner only) for `"user"`/`"allusers"` services, `0755` otherwise. Existing directories are not changed. Silver does not create `${UserData}` itself, so a service given `-dataDir=${UserData}` without a `LogFile` inside it should create the directory (owner only).  
 * **Paths**: All relative paths are based at the service root.  
 * **File Globbing**:  If a path contains a glob pattern (e.g. \*) and matches multiple files, the lexical highest file match is always used.  This powerful mechanism can be used to support version selection (See A *Robust Upgrade Strategy*)  
 * **Cron Syntax:** Scheduled tasks use a standard 6-field cron syntax (including seconds), which provides fine-grained scheduling control.  

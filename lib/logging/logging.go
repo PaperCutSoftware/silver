@@ -21,6 +21,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"runtime"
 	"sync"
 	"time"
@@ -30,6 +31,7 @@ const (
 	defaultMaxSize        = 10 * 1024 * 1024 // 10 MB
 	defaultMaxBackupFiles = 1
 	defaultFlushInterval  = 5 * time.Second
+	defaultDirPerm        = 0o755
 )
 
 var (
@@ -46,6 +48,7 @@ type rollingFile struct {
 	sync.Mutex
 	name                string
 	owner               string
+	dirPerm             os.FileMode
 	file                *os.File
 	maxSize             int64
 	maxBackupFiles      int
@@ -95,13 +98,14 @@ func stopFlusher(rfw *rollingFileWrapper) {
 	close(rfw.flusher.stop)
 }
 
-func newRollingFile(name string, owner string, maxSize int64, maxFiles int) (rf *rollingFile, err error) {
+func newRollingFile(name string, owner string, maxSize int64, maxFiles int, dirPerm os.FileMode) (rf *rollingFile, err error) {
 	if maxSize <= 0 {
 		maxSize = defaultMaxSize
 	}
 	rf = &rollingFile{
 		name:           name,
 		owner:          owner,
+		dirPerm:        dirPerm,
 		maxSize:        maxSize,
 		maxBackupFiles: maxFiles,
 		flusher: &flusher{
@@ -141,7 +145,7 @@ func (rf *rollingFile) flush() {
 
 func (rf *rollingFile) open() error {
 	var err error
-	rf.file, err = openLogFile(rf.name, rf.owner)
+	rf.file, err = openLogFile(rf.name, rf.owner, rf.dirPerm)
 	if err != nil {
 		return err
 	}
@@ -191,7 +195,11 @@ func (rf *rollingFile) roll() error {
 	return rf.open()
 }
 
-func openLogFile(name string, owner string) (f *os.File, err error) {
+// openLogFile creates the log's missing parent dirs with dirPerm; existing dirs are left as they are.
+func openLogFile(name string, owner string, dirPerm os.FileMode) (f *os.File, err error) {
+	if err = os.MkdirAll(filepath.Dir(name), dirPerm); err != nil {
+		return
+	}
 	f, err = os.OpenFile(name, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
 	if err != nil {
 		return
@@ -207,7 +215,13 @@ func NewFileLogger(file string, owner string, timeformat string) (logger *log.Lo
 
 // NewFileLoggerWithMaxSize implements a rolling logger with a set size
 func NewFileLoggerWithMaxSize(file string, owner string, maxSize int64, maxBackupFiles int, timeformat string) (logger *log.Logger) {
-	rf, err := newRollingFile(file, owner, maxSize, maxBackupFiles)
+	return NewFileLoggerWithDirPerm(file, owner, maxSize, maxBackupFiles, timeformat, defaultDirPerm)
+}
+
+// NewFileLoggerWithDirPerm implements a rolling logger with a set size, creating missing
+// parent dirs of file with dirPerm
+func NewFileLoggerWithDirPerm(file string, owner string, maxSize int64, maxBackupFiles int, timeformat string, dirPerm os.FileMode) (logger *log.Logger) {
+	rf, err := newRollingFile(file, owner, maxSize, maxBackupFiles, dirPerm)
 	// This trick ensures that the flusher goroutine does not keep
 	// the returned wrapper object from being garbage collected. When it is
 	// garbage collected, the finalizer stops the janitor goroutine, after
