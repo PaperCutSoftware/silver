@@ -117,21 +117,30 @@ func osServiceControl(ctx *context) int {
 	if logFile == "" {
 		logFile = serviceName + ".log"
 	}
+	// Log dirs a user-level service creates (e.g. under ${UserData}) must be user-only.
+	logDirPerm := os.FileMode(0o755)
+	switch service.ServiceLevel(ctx.conf.ServiceConfig.ServiceLevel) {
+	case service.ServiceLevelUser, service.ServiceLevelAllUsers:
+		logDirPerm = 0o700
+	}
 	if logFile == "os.stdout" {
 		ctx.logger = logging.NewConsoleLogger(ctx.conf.ServiceConfig.LogFileTimestampFormat)
 		ctx.errorLogger = logging.NewConsoleErrorLogger(ctx.conf.ServiceConfig.LogFileTimestampFormat)
 	} else {
-		ctx.logger = logging.NewFileLoggerWithMaxSize(logFile, ctx.conf.ServiceConfig.UserName, maxSize, ctx.conf.ServiceConfig.LogFileMaxBackupFiles, ctx.conf.ServiceConfig.LogFileTimestampFormat)
+		ctx.logger = logging.NewFileLoggerWithDirPerm(logFile, ctx.conf.ServiceConfig.UserName, maxSize, ctx.conf.ServiceConfig.LogFileMaxBackupFiles, ctx.conf.ServiceConfig.LogFileTimestampFormat, logDirPerm)
 		ctx.errorLogger = ctx.logger // use the same output for both stdout and errors
 	}
 
 	// Setup service
+	level := service.ServiceLevel(ctx.conf.ServiceConfig.ServiceLevel)
 	svcConfig := &service.Config{
-		Name:        serviceName,
-		DisplayName: ctx.conf.ServiceDescription.DisplayName,
-		Description: ctx.conf.ServiceDescription.Description,
-		UserName:    ctx.conf.ServiceConfig.UserName,
-		Option:      service.KeyValue{"UserService": ctx.conf.ServiceConfig.UserLevel},
+		Name:         serviceName,
+		DisplayName:  ctx.conf.ServiceDescription.DisplayName,
+		Description:  ctx.conf.ServiceDescription.Description,
+		UserName:     ctx.conf.ServiceConfig.UserName,
+		ServiceLevel: level,
+		// Linux backends still read the legacy UserService option.
+		Option: service.KeyValue{"UserService": level == service.ServiceLevelUser},
 	}
 
 	osService := &osService{ctx: ctx}
@@ -168,11 +177,13 @@ func printUsage(svcDisplayName, svcDesc string) {
 		serviceName())
 	fmt.Printf("%s\n\n", svcDesc)
 	fmt.Printf("Usage:\n")
-	fmt.Printf("%s [install|uninstall|start|stop|command|validate|run|version|help] [command-name]\n", exeName())
+	fmt.Printf("%s [install|uninstall|start|stop|startall|stopall|command|validate|run|version|help] [command-name]\n", exeName())
 	fmt.Printf("  install   - Install the service.\n")
 	fmt.Printf("  uninstall - Remove/uninstall the service.\n")
 	fmt.Printf("  start     - Start an installed service.\n")
 	fmt.Printf("  stop      - Stop an installed service.\n")
+	fmt.Printf("  startall  - Start the service for every logged-in user (allusers level, root).\n")
+	fmt.Printf("  stopall   - Stop the service for every logged-in user (allusers level, root).\n")
 	fmt.Printf("  validate  - Test the configuration file.\n")
 	fmt.Printf("  run       - Run service on in command-line mode.\n")
 	fmt.Printf("  command   - Run a command [command-name].\n")
@@ -183,9 +194,12 @@ func printUsage(svcDisplayName, svcDesc string) {
 func loadConf() (conf *config.Config, err error) {
 	// FIXME: Not Get this function out of utils.
 	confPath := getConfigFilePath()
+	// An unresolved user data dir only matters if the conf uses ${UserData}; load() reports it.
+	userData, _ := config.UserDataDir(serviceName())
 	vars := config.ReplacementVars{
 		ServiceName: serviceName(),
 		ServiceRoot: exeFolder(),
+		UserData:    userData,
 	}
 	conf, err = config.LoadConfig(confPath, vars)
 	if err != nil {

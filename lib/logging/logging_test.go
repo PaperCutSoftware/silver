@@ -3,7 +3,9 @@ package logging
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -137,5 +139,70 @@ func TestRollingLogFlush_IsFlushed(t *testing.T) {
 	}
 	if !strings.Contains(string(output), "x") {
 		t.Errorf("Expected 'x' in file. It did not flush in time")
+	}
+}
+
+func TestFileLogger_CreatesMissingParentDirs(t *testing.T) {
+	lname := filepath.Join(t.TempDir(), "a", "b", "test.log")
+
+	logger := NewFileLogger(lname, "", "")
+	logger.Print("TestFileLogger_CreatesMissingParentDirs")
+	CloseAllOpenFileLoggers()
+
+	output, err := os.ReadFile(lname)
+	if err != nil {
+		t.Fatalf("Unable to read file: %v", err)
+	}
+	if !strings.Contains(string(output), "TestFileLogger_CreatesMissingParentDirs") {
+		t.Errorf("log message not written, got %q", output)
+	}
+}
+
+func TestFileLoggerWithDirPerm_CreatedDirPerms(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix permission bits are not used on Windows")
+	}
+	for _, perm := range []os.FileMode{0o700, 0o755} {
+		t.Run(perm.String(), func(t *testing.T) {
+			root := t.TempDir()
+			lname := filepath.Join(root, "a", "b", "test.log")
+
+			NewFileLoggerWithDirPerm(lname, "", 1024, 1, "", perm)
+			CloseAllOpenFileLoggers()
+
+			for _, dir := range []string{filepath.Join(root, "a"), filepath.Join(root, "a", "b")} {
+				info, err := os.Stat(dir)
+				if err != nil {
+					t.Fatalf("Stat %s: %v", dir, err)
+				}
+				if got := info.Mode().Perm(); got != perm {
+					t.Errorf("%s perm = %v, want %v", dir, got, perm)
+				}
+			}
+		})
+	}
+}
+
+func TestFileLoggerWithDirPerm_ExistingDirUntouched(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("Unix permission bits are not used on Windows")
+	}
+	dir := filepath.Join(t.TempDir(), "existing")
+	if err := os.Mkdir(dir, 0o755); err != nil {
+		t.Fatalf("Mkdir: %v", err)
+	}
+	if err := os.Chmod(dir, 0o755); err != nil {
+		t.Fatalf("Chmod: %v", err)
+	}
+
+	NewFileLoggerWithDirPerm(filepath.Join(dir, "test.log"), "", 1024, 1, "", 0o700)
+	CloseAllOpenFileLoggers()
+
+	info, err := os.Stat(dir)
+	if err != nil {
+		t.Fatalf("Stat: %v", err)
+	}
+	if got := info.Mode().Perm(); got != 0o755 {
+		t.Errorf("existing dir perm = %v, want 0755", got)
 	}
 }

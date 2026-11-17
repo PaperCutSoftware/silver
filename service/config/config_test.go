@@ -3,7 +3,6 @@
 // Copyright (c) 2014-2016 PaperCut Software http://www.papercut.com/
 // Use of this source code is governed by an MIT or GPL Version 2 license.
 // See the project's LICENSE file for more information.
-//
 package config_test
 
 import (
@@ -378,6 +377,119 @@ func TestMergeInclude_EmptyInclude(t *testing.T) {
 	// Assert no error
 	if err != nil {
 		t.Errorf("Error loading config: %v", err)
+	}
+}
+
+const userDataTestConfig = `
+    {
+        "ServiceDescription" : {
+            "DisplayName" : "My Service"
+        },
+        "ServiceConfig" : {
+            "LogFile" : "${UserData}/logs/${ServiceName}.log"
+        },
+        "Services" : [
+            {
+                "Path" : "${ServiceRoot}/v*/my-service",
+                "Args" : ["-dataDir=${UserData}"]
+            }
+        ]
+    }`
+
+func TestLoadConfig_UserData_Replaced(t *testing.T) {
+	// Arrange
+	file := writeTestConfig(t, userDataTestConfig)
+	defer os.Remove(file)
+	vars := config.ReplacementVars{
+		ServiceName: "MyServiceName",
+		ServiceRoot: `C:\Program Files\MyService`,
+		UserData:    `C:\Users\bob\AppData\Local\MyServiceName`,
+	}
+
+	// Act
+	conf, err := config.LoadConfig(file, vars)
+
+	// Assert
+	if err != nil {
+		t.Fatalf("Error loading config: %v", err)
+	}
+	if want := `C:\Users\bob\AppData\Local\MyServiceName/logs/MyServiceName.log`; conf.ServiceConfig.LogFile != want {
+		t.Errorf("LogFile = %q, want %q", conf.ServiceConfig.LogFile, want)
+	}
+	if want := `-dataDir=C:\Users\bob\AppData\Local\MyServiceName`; conf.Services[0].Args[0] != want {
+		t.Errorf("Args[0] = %q, want %q", conf.Services[0].Args[0], want)
+	}
+}
+
+func TestLoadConfig_UserData_UsedButUnresolved_ShouldError(t *testing.T) {
+	// Arrange
+	file := writeTestConfig(t, userDataTestConfig)
+	defer os.Remove(file)
+
+	// Act
+	_, err := config.LoadConfig(file, config.ReplacementVars{ServiceName: "MyServiceName"})
+
+	// Assert
+	if err == nil || !strings.Contains(err.Error(), "${UserData}") {
+		t.Errorf("Expected ${UserData} error, got %v", err)
+	}
+}
+
+func TestLoadConfig_UserData_UnusedAndUnresolved_OK(t *testing.T) {
+	// Arrange
+	file := writeTestConfig(t, `{"ServiceDescription" : {"DisplayName" : "My Service"}}`)
+	defer os.Remove(file)
+
+	// Act
+	_, err := config.LoadConfig(file, config.ReplacementVars{ServiceName: "MyServiceName"})
+
+	// Assert
+	if err != nil {
+		t.Errorf("Error loading config: %v", err)
+	}
+}
+
+func TestMergeInclude_UserData_Replaced(t *testing.T) {
+	// Arrange
+	baseFile := writeTestConfig(t, `{"ServiceDescription" : {"DisplayName" : "My Service"}}`)
+	defer os.Remove(baseFile)
+	incFile := writeTestConfig(t, `{"Services" : [{"Path" : "my-service", "Args" : ["-dataDir=${UserData}"]}]}`)
+	defer os.Remove(incFile)
+	vars := config.ReplacementVars{
+		ServiceName: "MyServiceName",
+		UserData:    "/Users/bob/Library/Application Support/MyServiceName",
+	}
+	baseConf, err := config.LoadConfig(baseFile, vars)
+	if err != nil {
+		t.Fatalf("Error loading config: %v", err)
+	}
+
+	// Act
+	conf, err := config.MergeInclude(*baseConf, incFile, vars)
+
+	// Assert
+	if err != nil {
+		t.Fatalf("Error merging include: %v", err)
+	}
+	if want := "-dataDir=/Users/bob/Library/Application Support/MyServiceName"; conf.Services[0].Args[0] != want {
+		t.Errorf("Args[0] = %q, want %q", conf.Services[0].Args[0], want)
+	}
+}
+
+func TestLoadConfigNoReplacements_KeepsUserData(t *testing.T) {
+	// Arrange
+	file := writeTestConfig(t, userDataTestConfig)
+	defer os.Remove(file)
+
+	// Act
+	conf, err := config.LoadConfigNoReplacements(file)
+
+	// Assert
+	if err != nil {
+		t.Fatalf("Error loading config: %v", err)
+	}
+	if want := "${UserData}/logs/${ServiceName}.log"; conf.ServiceConfig.LogFile != want {
+		t.Errorf("LogFile = %q, want %q", conf.ServiceConfig.LogFile, want)
 	}
 }
 

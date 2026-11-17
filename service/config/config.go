@@ -21,6 +21,7 @@ import (
 
 const stopFileName = ".stop"
 const ReloadFileName = ".reload"
+const userDataVar = "${UserData}"
 
 type Config struct {
 	ServiceDescription ServiceDescription
@@ -46,7 +47,8 @@ type ServiceConfig struct {
 	LogFileMaxSizeMb       int64
 	LogFileMaxBackupFiles  int
 	PidFile                string
-	UserLevel              bool
+	UserLevel              bool   // Deprecated: use ServiceLevel "user"
+	ServiceLevel           string // "system" (default), "allusers" or "user"
 	UserName               string
 	LogFileTimestampFormat string
 }
@@ -99,6 +101,7 @@ type Command struct {
 type ReplacementVars struct {
 	ServiceName string
 	ServiceRoot string
+	UserData    string // Empty if unresolved; a conf using ${UserData} then fails to load.
 }
 
 // LoadConfig parses config.
@@ -139,6 +142,7 @@ func LoadConfigNoReplacements(filePath string) (*Config, error) {
 	conf, err := LoadConfig(filePath, ReplacementVars{
 		ServiceName: "${ServiceName}",
 		ServiceRoot: "${ServiceRoot}",
+		UserData:    userDataVar,
 	})
 	return conf, err
 }
@@ -161,9 +165,14 @@ func load(path string, vars ReplacementVars) (conf *Config, err error) {
 		return nil, err
 	}
 
+	if vars.UserData == "" && strings.Contains(string(s), userDataVar) {
+		return nil, fmt.Errorf("%s is used in %s but the user data directory could not be resolved", userDataVar, path)
+	}
+
 	replacements := map[string]string{
 		"${ServiceName}": jsonEscapeString(vars.ServiceName),
 		"${ServiceRoot}": jsonEscapeString(vars.ServiceRoot),
+		userDataVar:      jsonEscapeString(vars.UserData),
 	}
 	s = []byte(replaceVars(string(s), replacements))
 
@@ -190,6 +199,11 @@ func (conf *Config) validate() error {
 	if conf.ServiceDescription.DisplayName == "" {
 		return fmt.Errorf("ServiceDescription.DisplayName is required configuration")
 	}
+	switch conf.ServiceConfig.ServiceLevel {
+	case "", "system", "allusers", "user":
+	default:
+		return fmt.Errorf("ServiceConfig.ServiceLevel must be one of system, allusers or user (got %q)", conf.ServiceConfig.ServiceLevel)
+	}
 	return nil
 }
 
@@ -199,6 +213,10 @@ func (conf *Config) applyDefaults() {
 	}
 	if conf.ServiceConfig.ReloadFile == "" {
 		conf.ServiceConfig.ReloadFile = ReloadFileName
+	}
+
+	if conf.ServiceConfig.ServiceLevel == "" && conf.ServiceConfig.UserLevel {
+		conf.ServiceConfig.ServiceLevel = "user"
 	}
 
 	if conf.ServiceConfig.LogFileMaxSizeMb == 0 {
