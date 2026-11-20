@@ -426,9 +426,11 @@ go run make.go -goos=windows -goarch=amd64
 
 ## **Go Version Policy**
 
-Silver takes a **conservative approach** to its Go version. This policy is designed to maximise compatibility with the wide range of client operating systems that are actively in use and supported.
+The project currently targets **Go 1.27**. Binaries built with this version require at least:
 
-The project currently targets **Go 1.20**.
+* **Windows:** Windows 10 or Windows Server 2016
+* **macOS:** macOS 13 Ventura
+* **Linux:** kernel 3.2
 
 ## **Licence**
 

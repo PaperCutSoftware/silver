@@ -1,6 +1,6 @@
 module github.com/papercutsoftware/silver
 
-go 1.20
+go 1.27.4
 
 require (
 	github.com/gowebpki/jcs v1.0.1

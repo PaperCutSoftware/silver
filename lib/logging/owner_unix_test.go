@@ -29,7 +29,7 @@ func TestLogIsOwnedByCorrectUser(t *testing.T) {
 	}()
 
 	msg := "TestStandardLogging"
-	logger.Printf(msg)
+	logger.Print(msg)
 	CloseAllOpenFileLoggers()
 
 	if !functionCalled {
