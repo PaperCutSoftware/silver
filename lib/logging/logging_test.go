@@ -79,7 +79,7 @@ func TestRollingLog(t *testing.T) {
 	}()
 
 	msg := "TestRollingLog"
-	for i := 0; i < 2000; i++ {
+	for i := range 2000 {
 		logger.Printf("%s-%d", msg, i)
 	}
 	CloseAllOpenFileLoggers()
@@ -123,7 +123,7 @@ func TestRollingLogFlush_IsFlushed(t *testing.T) {
 
 	// Act
 	msg := "TestRollingLog"
-	for i := 0; i < 100; i++ {
+	for i := range 100 {
 		logger.Printf("%s-%d", msg, i)
 	}
 	logger.Printf("x")

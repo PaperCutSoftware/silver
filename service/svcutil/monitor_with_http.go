@@ -4,14 +4,13 @@
 // Use of this source code is governed by an MIT or GPL Version 2 license.
 // See the project's LICENSE file for more information.
 //
-// +build !nohttp
+//go:build !nohttp
 
 package svcutil
 
 import (
 	"errors"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"time"
@@ -27,7 +26,7 @@ func pingHTTP(pingURL string, timeout time.Duration) (ok bool, err error) {
 	if resp.StatusCode != 200 {
 		return false, errors.New("The HTTP status was not 200 OK")
 	}
-	if _, err := io.Copy(ioutil.Discard, resp.Body); err != nil {
+	if _, err := io.Copy(io.Discard, resp.Body); err != nil {
 		return false, err
 	}
 	return true, nil // OK

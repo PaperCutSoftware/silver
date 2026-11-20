@@ -16,7 +16,6 @@ package main
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 
@@ -116,14 +115,14 @@ func checkUpdate(currentVer, checkURL, publicKey string) (*update.UpgradeInfo, e
 
 func upgradeComplete(upgradeInfo *update.UpgradeInfo) {
 	// Write version file
-	_ = ioutil.WriteFile(*versionFile, []byte(upgradeInfo.Version+"\n"), 0644)
+	_ = os.WriteFile(*versionFile, []byte(upgradeInfo.Version+"\n"), 0644)
 
 	// Request service restart by writing the reload file into our root
-	_ = ioutil.WriteFile(config.ReloadFileName, []byte(""), 0644)
+	_ = os.WriteFile(config.ReloadFileName, []byte(""), 0644)
 }
 
 func download(url string) (string, error) {
-	outfile, err := ioutil.TempFile("", "update-")
+	outfile, err := os.CreateTemp("", "update-")
 	if err != nil {
 		return "", err
 	}

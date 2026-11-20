@@ -13,7 +13,8 @@ package config
 import (
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
+	"maps"
+	"os"
 	"strings"
 
 	"github.com/papercutsoftware/silver/lib/osutils"
@@ -128,9 +129,7 @@ func MergeInclude(conf Config, path string, vars ReplacementVars) (*Config, erro
 	conf.StartupTasks = append(conf.StartupTasks, include.StartupTasks...)
 	conf.ScheduledTasks = append(conf.ScheduledTasks, include.ScheduledTasks...)
 	conf.Commands = append(conf.Commands, include.Commands...)
-	for k, v := range include.EnvironmentVars {
-		conf.EnvironmentVars[k] = v
-	}
+	maps.Copy(conf.EnvironmentVars, include.EnvironmentVars)
 	return &conf, nil
 }
 
@@ -144,7 +143,7 @@ func LoadConfigNoReplacements(filePath string) (*Config, error) {
 }
 
 func load(path string, vars ReplacementVars) (conf *Config, err error) {
-	s, err := ioutil.ReadFile(path)
+	s, err := os.ReadFile(path)
 	if err != nil {
 		return nil, err
 	}

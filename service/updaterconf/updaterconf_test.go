@@ -11,7 +11,6 @@ import (
 	"github.com/papercutsoftware/silver/lib/osutils"
 	"github.com/papercutsoftware/silver/service/config"
 	"github.com/papercutsoftware/silver/service/updaterconf"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -126,7 +125,7 @@ func TestConfWithoutUpdates(t *testing.T) {
 }
 
 func createConf(data string) (*os.File, error) {
-	file, err := ioutil.TempFile("", "test-silver-config")
+	file, err := os.CreateTemp("", "test-silver-config")
 	if err != nil {
 		return nil, err
 	}

@@ -105,7 +105,7 @@ func exeName(path string) string {
 	return filepath.Base(path)
 }
 
-func logf(l *log.Logger, exeName string, format string, v ...interface{}) {
+func logf(l *log.Logger, exeName string, format string, v ...any) {
 	if l != nil {
 		l.Printf("%s: %s", exeName, fmt.Sprintf(format, v...))
 	}

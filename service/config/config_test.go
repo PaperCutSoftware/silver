@@ -3,12 +3,10 @@
 // Copyright (c) 2014-2016 PaperCut Software http://www.papercut.com/
 // Use of this source code is governed by an MIT or GPL Version 2 license.
 // See the project's LICENSE file for more information.
-//
 package config_test
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"strings"
 	"testing"
@@ -382,7 +380,7 @@ func TestMergeInclude_EmptyInclude(t *testing.T) {
 }
 
 func writeTestConfig(t *testing.T, config string) string {
-	tmpFile, err := ioutil.TempFile("", "test-config")
+	tmpFile, err := os.CreateTemp("", "test-config")
 	if err != nil {
 		t.Fatalf("Unable to write test config: %v", err)
 	}

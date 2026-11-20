@@ -16,9 +16,10 @@ import (
 // a hard kill is issued.
 //
 // IMPORTANT: On Windows processes started form Go must be in their own process group.
-// cmd.SysProcAttr = &syscall.SysProcAttr{
-//	CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
-// }
+//
+//	cmd.SysProcAttr = &syscall.SysProcAttr{
+//		CreationFlags: syscall.CREATE_NEW_PROCESS_GROUP,
+//	}
 func ProcessKillGracefully(pid int, maxTime time.Duration) error {
 	const checkPeriod = 500 * time.Millisecond
 	end := time.Now().Add(maxTime)

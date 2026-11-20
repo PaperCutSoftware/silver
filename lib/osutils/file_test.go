@@ -9,13 +9,12 @@ package osutils_test
 
 import (
 	"github.com/papercutsoftware/silver/lib/osutils"
-	"io/ioutil"
 	"os"
 	"testing"
 )
 
 func TestFileOps(t *testing.T) {
-	file, err := ioutil.TempFile("", "testFileOps")
+	file, err := os.CreateTemp("", "testFileOps")
 	if err != nil {
 		t.Errorf("Failed to create file: %v", err)
 	}
@@ -39,7 +38,7 @@ func TestFileOps(t *testing.T) {
 }
 
 func TestCopyFile(t *testing.T) {
-	file, err := ioutil.TempFile("", "testCopyFile")
+	file, err := os.CreateTemp("", "testCopyFile")
 	if err != nil {
 		t.Errorf("Failed to create file: %v", err)
 	}
@@ -91,7 +90,7 @@ func TestCopyFile(t *testing.T) {
 }
 
 func TestReadStringFromFile(t *testing.T) {
-	file, err := ioutil.TempFile("", "testReadStringFromFile")
+	file, err := os.CreateTemp("", "testReadStringFromFile")
 	if err != nil {
 		t.Errorf("Failed to create file: %v", err)
 	}

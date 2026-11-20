@@ -62,7 +62,7 @@ func (sm *serviceMonitor) start(terminate chan struct{}) chan struct{} {
 	return monitor
 }
 
-func (sm *serviceMonitor) logf(format string, v ...interface{}) {
+func (sm *serviceMonitor) logf(format string, v ...any) {
 	if sm.logger != nil {
 		sm.logger.Printf("%s: %s", sm.serviceName, fmt.Sprintf(format, v...))
 	}

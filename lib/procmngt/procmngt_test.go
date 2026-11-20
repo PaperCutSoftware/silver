@@ -9,7 +9,6 @@ package procmngt_test
 
 import (
 	"bytes"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -251,7 +250,7 @@ func makeHelloWorldForever(t *testing.T) (tmpDir, testExe string) {
 }
 
 func makeTestExe(t *testing.T, testSrc string) (tmpDir, testExe string) {
-	tmpDir, err := ioutil.TempDir("", "TestProcmgmt")
+	tmpDir, err := os.MkdirTemp("", "TestProcmgmt")
 	if err != nil {
 		t.Fatal("TempDir failed: ", err)
 	}

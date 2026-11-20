@@ -92,8 +92,8 @@ func cleanProxy(proxy string) string {
 	proxy = strings.TrimSpace(proxy)
 	advancedPrefixes := []string{"http=", "https=", "ftp=", "socks="}
 	for _, prefix := range advancedPrefixes {
-		if strings.HasPrefix(proxy, prefix) {
-			return strings.TrimPrefix(proxy, prefix)
+		if after, ok := strings.CutPrefix(proxy, prefix); ok {
+			return after
 		}
 	}
 	return proxy

@@ -11,9 +11,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync"
 
@@ -198,13 +198,13 @@ func (u *UpdaterConf) DisableAutoUpdate() error {
 	return nil
 }
 
-func (u *UpdaterConf) removeUpdaterTasks(conf map[string]interface{}, key string) bool {
-	tasks, ok := conf[key].([]interface{})
+func (u *UpdaterConf) removeUpdaterTasks(conf map[string]any, key string) bool {
+	tasks, ok := conf[key].([]any)
 	if !ok {
 		return false
 	}
 	for i := 0; i < len(tasks); i++ {
-		task, ok := tasks[i].(map[string]interface{})
+		task, ok := tasks[i].(map[string]any)
 		if !ok {
 			continue
 		}
@@ -232,12 +232,7 @@ func (u *UpdaterConf) IsAutoUpdateEnabled() (bool, error) {
 }
 
 func (u *UpdaterConf) containsUpdaterTask(tasks []config.Task) bool {
-	for _, task := range tasks {
-		if u.isUpdaterTask(task) {
-			return true
-		}
-	}
-	return false
+	return slices.ContainsFunc(tasks, u.isUpdaterTask)
 }
 
 func (u *UpdaterConf) getTasksFromServiceConfig() ([]config.Task, error) {
@@ -263,12 +258,12 @@ func (u *UpdaterConf) extractTasks(c *config.Config) []config.Task {
 	return tasks
 }
 
-func (u *UpdaterConf) loadConfig(filePath string) (map[string]interface{}, error) {
-	bytes, err := ioutil.ReadFile(filePath)
+func (u *UpdaterConf) loadConfig(filePath string) (map[string]any, error) {
+	bytes, err := os.ReadFile(filePath)
 	if err != nil {
 		return nil, err
 	}
-	var dto map[string]interface{}
+	var dto map[string]any
 	err = json.Unmarshal(bytes, &dto)
 	if err != nil {
 		return nil, fmt.Errorf("loadConfig failed to unmarshal JSON config file: %w", err)
@@ -276,13 +271,13 @@ func (u *UpdaterConf) loadConfig(filePath string) (map[string]interface{}, error
 	return dto, nil
 }
 
-func (u *UpdaterConf) saveConfig(dto map[string]interface{}) error {
+func (u *UpdaterConf) saveConfig(dto map[string]any) error {
 	file, err := json.MarshalIndent(dto, "", "    ")
 	if err != nil {
 		return fmt.Errorf("saveConfig failed to marshal JSON config data: %w", err)
 	}
 	filePath := u.getServiceConfigPath()
-	return ioutil.WriteFile(filePath, file, u.perm)
+	return os.WriteFile(filePath, file, u.perm)
 }
 
 func (u *UpdaterConf) deleteReloadFile() error {
@@ -301,7 +296,7 @@ func (u *UpdaterConf) backupServiceConfigIfRequired() error {
 		return nil
 	}
 	sourceFile := u.getServiceConfigPath()
-	input, err := ioutil.ReadFile(sourceFile)
+	input, err := os.ReadFile(sourceFile)
 	if err != nil {
 		return err
 	}
@@ -315,5 +310,5 @@ func (u *UpdaterConf) backupServiceConfigIfRequired() error {
 // reloadApp triggers a service reload
 func (u *UpdaterConf) reloadApp() error {
 	filePath := u.getReloadFilePath()
-	return ioutil.WriteFile(filePath, []byte{}, u.perm)
+	return os.WriteFile(filePath, []byte{}, u.perm)
 }

@@ -9,7 +9,6 @@ package osutils
 
 import (
 	"io"
-	"io/ioutil"
 	"os"
 	"strings"
 )
@@ -56,7 +55,7 @@ func WriteFileString(filename string, data string, perm os.FileMode) error {
 
 // ReadStringFromFile reads a text file and returns contents as string or fall back to default as per def on error
 func ReadStringFromFile(file string, def string) string {
-	if dat, err := ioutil.ReadFile(file); err == nil {
+	if dat, err := os.ReadFile(file); err == nil {
 		def = strings.TrimSpace(string(dat))
 	}
 	return def

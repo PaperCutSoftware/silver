@@ -8,7 +8,6 @@
 package osutils_test
 
 import (
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -158,7 +157,7 @@ func main() {
 	}
 }
 `
-	tmpDir, err := ioutil.TempDir("", "TestSigProcess")
+	tmpDir, err := os.MkdirTemp("", "TestSigProcess")
 	if err != nil {
 		t.Fatal("TempDir failed: ", err)
 	}

@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"slices"
 	"strings"
 )
 
@@ -38,12 +39,7 @@ func isArgsValid(args []string) bool {
 		return true
 	}
 
-	for _, arg := range validArgs {
-		if arg == args[1] {
-			return true
-		}
-	}
-	return false
+	return slices.Contains(validArgs, args[1])
 }
 
 var aliases = map[string]string{

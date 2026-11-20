@@ -9,7 +9,6 @@ package svcutil_test
 
 import (
 	"bytes"
-	"io/ioutil"
 	"log"
 	"os"
 	"os/exec"
@@ -311,7 +310,7 @@ func makeCrashExe(t *testing.T) (tmpDir, testExe string) {
 }
 
 func makeTestExe(t *testing.T, testSrc string) (tmpDir, testExe string) {
-	tmpDir, err := ioutil.TempDir("", "TestSvcutil")
+	tmpDir, err := os.MkdirTemp("", "TestSvcutil")
 	if err != nil {
 		t.Fatal("TempDir failed: ", err)
 	}

@@ -13,7 +13,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"math"
 	"math/big"
 	"net/http"
@@ -44,7 +43,7 @@ func loadProfile(prf *Profile) (err error) {
 	if fn, err = getProfileFileName(); err != nil {
 		return err
 	}
-	if data, err = ioutil.ReadFile(fn); err != nil {
+	if data, err = os.ReadFile(fn); err != nil {
 		return err
 	}
 	if err = json.Unmarshal(data, prf); err != nil {
@@ -62,7 +61,7 @@ func saveProfile(prf *Profile) (err error) {
 	if data, err = json.Marshal(prf); err != nil {
 		return err
 	}
-	return ioutil.WriteFile(fn, data, 0600)
+	return os.WriteFile(fn, data, 0600)
 }
 
 func SetRandomProfileID() int {

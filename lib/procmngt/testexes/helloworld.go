@@ -5,7 +5,7 @@
 // See the project's LICENSE file for more information.
 //
 
-// +build ignore
+//go:build ignore
 
 package main
 
