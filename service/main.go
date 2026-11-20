@@ -150,6 +150,10 @@ func osServiceControl(ctx *context) int {
 		return 0
 	}
 
+	if logFile != "os.stdout" {
+		logging.SetupCrashOutput(crashLogPath(logFile), ctx.conf.ServiceConfig.UserName, ctx.logger)
+	}
+
 	err = svc.Run()
 	if err != nil {
 		fmt.Printf("ERROR: %v\n", err)
@@ -161,6 +165,10 @@ func osServiceControl(ctx *context) int {
 		_ = os.WriteFile(pidFile, []byte(fmt.Sprintf("%d\n", os.Getpid())), 0644)
 	}
 	return 0
+}
+
+func crashLogPath(logFile string) string {
+	return strings.TrimSuffix(logFile, filepath.Ext(logFile)) + "-silver-crash.log"
 }
 
 func printUsage(svcDisplayName, svcDesc string) {
