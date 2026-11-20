@@ -48,10 +48,8 @@ func TestHelperCrash(t *testing.T) {
 	}
 }
 
-func runCrashHelper(t *testing.T, mode string) (crashLog string, output string, err error) {
+func runCrashHelper(t *testing.T, mode, path string) (crashLog string, output string, err error) {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "x-silver-crash.log")
-
 	cmd := exec.Command(os.Args[0], "-test.run=^TestHelperCrash$")
 	// Force GOTRACEBACK=single so we know SetupCrashOutput has set it properly
 	cmd.Env = append(os.Environ(), "GOTRACEBACK=single", crashHelperModeEnv+"="+mode, crashHelperPathEnv+"="+path)
@@ -65,7 +63,7 @@ func runCrashHelper(t *testing.T, mode string) (crashLog string, output string, 
 }
 
 func TestCrashOutput_PanicIsWrittenToCrashLog(t *testing.T) {
-	crashLog, output, err := runCrashHelper(t, "panic")
+	crashLog, output, err := runCrashHelper(t, "panic", filepath.Join(t.TempDir(), "x-silver-crash.log"))
 
 	if err == nil {
 		t.Fatal("expected child process to exit with an error")
@@ -83,7 +81,7 @@ func TestCrashOutput_PanicIsWrittenToCrashLog(t *testing.T) {
 }
 
 func TestCrashOutput_FatalErrorIsWrittenToCrashLog(t *testing.T) {
-	crashLog, output, err := runCrashHelper(t, "fatal")
+	crashLog, output, err := runCrashHelper(t, "fatal", filepath.Join(t.TempDir(), "x-silver-crash.log"))
 
 	if err == nil {
 		t.Fatal("expected child process to exit with an error")
@@ -93,5 +91,37 @@ func TestCrashOutput_FatalErrorIsWrittenToCrashLog(t *testing.T) {
 	}
 	if !strings.Contains(output, "fatal error: sync: unlock of unlocked mutex") {
 		t.Errorf("expected fatal error message on stderr, got:\n%s", output)
+	}
+}
+
+func TestCrashOutput_RestartAfterCrashWarnsOnce(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "x-silver-crash.log")
+	const warning = "Silver crashed during a previous run"
+
+	if _, output, err := runCrashHelper(t, "panic", path); err == nil {
+		t.Fatalf("expected panic run to fail:\n%s", output)
+	}
+
+	afterFirst, output, err := runCrashHelper(t, "clean", path)
+	if err != nil {
+		t.Fatalf("clean run failed: %v\n%s", err, output)
+	}
+	if !strings.Contains(output, warning) {
+		t.Errorf("expected crash warning on first restart, got:\n%s", output)
+	}
+	if !strings.Contains(afterFirst, "panic: "+crashTestPanicMsg) {
+		t.Errorf("crash trace lost:\n%s", afterFirst)
+	}
+	assertEndsWithRestartMarker(t, path)
+
+	afterSecond, output, err := runCrashHelper(t, "clean", path)
+	if err != nil {
+		t.Fatalf("second clean run failed: %v\n%s", err, output)
+	}
+	if strings.Contains(output, warning) {
+		t.Errorf("expected no crash warning on a clean restart, got:\n%s", output)
+	}
+	if afterSecond != afterFirst {
+		t.Error("crash log changed on a clean restart")
 	}
 }

@@ -3,6 +3,7 @@ package logging
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -137,5 +138,22 @@ func TestRollingLogFlush_IsFlushed(t *testing.T) {
 	}
 	if !strings.Contains(string(output), "x") {
 		t.Errorf("Expected 'x' in file. It did not flush in time")
+	}
+}
+
+func TestFlushAllOpenFileLoggers(t *testing.T) {
+	lname := filepath.Join(t.TempDir(), "flush.log")
+	logger := NewFileLogger(lname, "", "")
+	t.Cleanup(CloseAllOpenFileLoggers)
+
+	logger.Print("TestFlushAllOpenFileLoggers")
+	FlushAllOpenFileLoggers()
+
+	data, err := os.ReadFile(lname)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(string(data), "TestFlushAllOpenFileLoggers") {
+		t.Errorf("expected buffered output on disk after flush, got %q", data)
 	}
 }

@@ -229,6 +229,13 @@ func NewFileLoggerWithMaxSize(file string, owner string, maxSize int64, maxBacku
 	return logger
 }
 
+// FlushAllOpenFileLoggers flushes buffered output for all open file loggers.
+func FlushAllOpenFileLoggers() {
+	for _, rf := range openRollingFiles {
+		rf.flush()
+	}
+}
+
 // CloseAllOpenFileLoggers is a convenience method for tests
 func CloseAllOpenFileLoggers() {
 	for _, rf := range openRollingFiles {
