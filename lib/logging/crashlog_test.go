@@ -69,11 +69,54 @@ func stubOwner(t *testing.T, ret error) *ownerCall {
 	return oc
 }
 
+// absent marks a file expected not to exist in checkCrashFiles.
+const absent = "\x00absent"
+
+// blockRotation makes renaming path.1 onto path.2 fail by placing a non-empty
+// directory at path.2, alongside an existing path.1.
+func blockRotation(t *testing.T, path, backup1 string) {
+	t.Helper()
+	if err := os.WriteFile(path+".1", []byte(backup1), 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+	if err := os.MkdirAll(filepath.Join(path+".2", "sub"), 0755); err != nil {
+		t.Fatalf("MkdirAll: %v", err)
+	}
+	if err := os.WriteFile(filepath.Join(path+".2", "sub", "f"), []byte("x"), 0644); err != nil {
+		t.Fatalf("WriteFile: %v", err)
+	}
+}
+
+// checkCrashFiles compares path+suffix contents with want; absent means the
+// file must not exist.
+func checkCrashFiles(t *testing.T, path string, want map[string]string) {
+	t.Helper()
+	for suffix, w := range want {
+		got, err := os.ReadFile(path + suffix)
+		if w == absent {
+			if err == nil || !os.IsNotExist(err) {
+				t.Errorf("expected %s not to exist, got err %v", path+suffix, err)
+			}
+			continue
+		}
+		if err != nil {
+			t.Errorf("ReadFile %s: %v", path+suffix, err)
+			continue
+		}
+		if string(got) != w {
+			t.Errorf("%s: got %d bytes %.40q, want %d bytes %.40q", path+suffix, len(got), got, len(w), w)
+		}
+	}
+}
+
 func TestSetupCrashOutput(t *testing.T) {
+	full := strings.Repeat("x", crashLogMaxSize)
 	tests := []struct {
 		name         string
 		owner        string
 		existing     string // content written before setup; "" means no file
+		setup        func(t *testing.T, path string)
+		wantFiles    map[string]string // suffix -> content after setup; nil means {"": existing}
 		missingDir   bool
 		ownerErr     error
 		redirectErr  error
@@ -129,6 +172,30 @@ func TestSetupCrashOutput(t *testing.T) {
 			wantLog:     []string{"WARNING: Unable to enable crash output to <path>: ", errRedirectNotStubbed.Error()},
 			notLog:      []string{"Crash output enabled"},
 		},
+		{
+			name:         "full log rotated",
+			existing:     full,
+			wantFiles:    map[string]string{"": "", ".1": full, ".2": absent},
+			wantRedirect: true,
+			wantLog:      []string{"Crash output enabled: <path>"},
+			notLog:       []string{"WARNING"},
+		},
+		{
+			name:         "log below limit not rotated",
+			existing:     full[1:],
+			wantFiles:    map[string]string{"": full[1:], ".1": absent},
+			wantRedirect: true,
+			wantLog:      []string{"Crash output enabled: <path>"},
+			notLog:       []string{"WARNING"},
+		},
+		{
+			name:         "rotation fails",
+			existing:     full,
+			setup:        func(t *testing.T, path string) { blockRotation(t, path, "backup-one") },
+			wantFiles:    map[string]string{"": full, ".1": "backup-one"},
+			wantRedirect: true,
+			wantLog:      []string{"WARNING: Unable to rotate crash log <path>: ", "Crash output enabled: <path>"},
+		},
 	}
 
 	for _, tc := range tests {
@@ -147,6 +214,9 @@ func TestSetupCrashOutput(t *testing.T) {
 				if err := os.WriteFile(path, []byte(tc.existing), 0644); err != nil {
 					t.Fatalf("WriteFile: %v", err)
 				}
+			}
+			if tc.setup != nil {
+				tc.setup(t, path)
 			}
 
 			var buf bytes.Buffer
@@ -186,13 +256,11 @@ func TestSetupCrashOutput(t *testing.T) {
 				}
 				return
 			}
-			got, err := os.ReadFile(path)
-			if err != nil {
-				t.Fatalf("ReadFile: %v", err)
+			wantFiles := tc.wantFiles
+			if wantFiles == nil {
+				wantFiles = map[string]string{"": tc.existing}
 			}
-			if string(got) != tc.existing {
-				t.Errorf("expected crash log content %q, got %q", tc.existing, string(got))
-			}
+			checkCrashFiles(t, path, wantFiles)
 			if tc.existing == "" && runtime.GOOS != "windows" {
 				fi, err := os.Stat(path)
 				if err != nil {
@@ -202,6 +270,108 @@ func TestSetupCrashOutput(t *testing.T) {
 					t.Errorf("expected crash log mode 0644 (subject to umask), got %#o", perm)
 				}
 			}
+		})
+	}
+}
+
+func TestRotateCrashLog(t *testing.T) {
+	if crashLogMaxSize != 1<<20 || crashLogMaxBackups != 2 {
+		t.Errorf("crashLogMaxSize = %d, crashLogMaxBackups = %d; want %d, 2", crashLogMaxSize, crashLogMaxBackups, 1<<20)
+	}
+
+	const maxSize = 10
+	tests := []struct {
+		name        string
+		files       map[string]string // suffix -> content written before rotation
+		block       bool              // blockRotation with path.1 = "backup-one"
+		wantRotated bool
+		wantErr     bool
+		want        map[string]string
+	}{
+		{
+			name: "missing file",
+			want: map[string]string{"": absent, ".1": absent, ".2": absent},
+		},
+		{
+			name:  "empty file",
+			files: map[string]string{"": ""},
+			want:  map[string]string{"": "", ".1": absent},
+		},
+		{
+			name:  "smaller than limit",
+			files: map[string]string{"": "123456789", ".1": "backup-one"},
+			want:  map[string]string{"": "123456789", ".1": "backup-one", ".2": absent},
+		},
+		{
+			name:        "exactly at limit",
+			files:       map[string]string{"": "0123456789"},
+			wantRotated: true,
+			want:        map[string]string{"": absent, ".1": "0123456789", ".2": absent},
+		},
+		{
+			name:        "above limit",
+			files:       map[string]string{"": "current-log-full"},
+			wantRotated: true,
+			want:        map[string]string{"": absent, ".1": "current-log-full", ".2": absent},
+		},
+		{
+			name:        "backups shift and oldest dropped",
+			files:       map[string]string{"": "current-log-full", ".1": "backup-one", ".2": "backup-two"},
+			wantRotated: true,
+			want:        map[string]string{"": absent, ".1": "current-log-full", ".2": "backup-one", ".3": absent},
+		},
+		{
+			name:        "existing .1 shifts to missing .2",
+			files:       map[string]string{"": "current-log-full", ".1": "backup-one"},
+			wantRotated: true,
+			want:        map[string]string{"": absent, ".1": "current-log-full", ".2": "backup-one"},
+		},
+		{
+			name:        "missing .1 skipped",
+			files:       map[string]string{"": "current-log-full", ".2": "backup-two"},
+			wantRotated: true,
+			want:        map[string]string{"": absent, ".1": "current-log-full", ".2": "backup-two"},
+		},
+		{
+			name:    "rename fails stops rotation",
+			files:   map[string]string{"": "current-log-full"},
+			block:   true,
+			wantErr: true,
+			want:    map[string]string{"": "current-log-full", ".1": "backup-one"},
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			path := filepath.Join(t.TempDir(), "crash.log")
+			for suffix, content := range tc.files {
+				if err := os.WriteFile(path+suffix, []byte(content), 0644); err != nil {
+					t.Fatalf("WriteFile: %v", err)
+				}
+			}
+			if tc.block {
+				blockRotation(t, path, "backup-one")
+			}
+
+			rotated, err := rotateCrashLog(path, maxSize, crashLogMaxBackups)
+
+			if tc.wantErr {
+				var linkErr *os.LinkError
+				if !errors.As(err, &linkErr) || os.IsNotExist(err) {
+					t.Errorf("expected rename error, got %v", err)
+				}
+				if fi, statErr := os.Stat(path + ".2"); statErr != nil || !fi.IsDir() {
+					t.Errorf("expected %s.2 directory left in place, got %v", path, statErr)
+				}
+			} else {
+				if err != nil {
+					t.Errorf("unexpected error: %v", err)
+				}
+				if rotated != tc.wantRotated {
+					t.Errorf("rotated = %v, want %v", rotated, tc.wantRotated)
+				}
+			}
+			checkCrashFiles(t, path, tc.want)
 		})
 	}
 }

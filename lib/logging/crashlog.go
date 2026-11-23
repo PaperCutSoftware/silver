@@ -7,9 +7,16 @@
 package logging
 
 import (
+	"errors"
+	"fmt"
 	"log"
 	"os"
 	"runtime/debug"
+)
+
+const (
+	crashLogMaxSize    = 1 << 20
+	crashLogMaxBackups = 2
 )
 
 // redirectStderr points the process's stderr at the crash log; mockable for tests.
@@ -19,10 +26,42 @@ var redirectStderr = redirectStderrImpl
 // finalizer never closes stderr.
 var stderrFile *os.File
 
-// SetupCrashOutput sends unhandled panics and fatal runtime errors to path.
+// SetupCrashOutput rotates path, then sends unhandled panics and fatal runtime
+// errors to it.
 func SetupCrashOutput(path, owner string, logger *log.Logger) {
 	defer FlushAllOpenFileLoggers()
+	if _, err := rotateCrashLog(path, crashLogMaxSize, crashLogMaxBackups); err != nil {
+		logger.Printf("WARNING: Unable to rotate crash log %s: %v", path, err)
+	}
 	enableCrashOutput(path, owner, logger)
+}
+
+// rotateCrashLog shifts path to path.1, path.1 to path.2 and so on up to
+// maxBackups once path reaches maxSize bytes.
+func rotateCrashLog(path string, maxSize int64, maxBackups int) (rotated bool, err error) {
+	info, err := os.Stat(path)
+	if errors.Is(err, os.ErrNotExist) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if info.Size() < maxSize {
+		return false, nil
+	}
+
+	for i := maxBackups; i > 0; i-- {
+		from := path
+		if i > 1 {
+			from = fmt.Sprintf("%s.%d", path, i-1)
+		}
+		to := fmt.Sprintf("%s.%d", path, i)
+		// Stop at the first failure so a later rename can't overwrite a backup
+		if err := os.Rename(from, to); err != nil && !errors.Is(err, os.ErrNotExist) {
+			return false, err
+		}
+	}
+	return true, nil
 }
 
 func enableCrashOutput(path, owner string, logger *log.Logger) {
