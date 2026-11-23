@@ -88,6 +88,9 @@ The configuration file is the heart of Silver. Here is a comprehensive example w
         // This is in Go format; see https://pkg.go.dev/time#Layout
         "LogFileTimestampFormat": "2006-01-02 15:04:05.000000",
 
+        // Optional. Captures Silver's own panics and fatal errors (see "Crash Log" below).
+        "CrashLogFile": "${ServiceRoot}/${ServiceName}-crash.log",
+
         // File to store the current main service PID.
         "PidFile": "${ServiceRoot}/${ServiceName}.pid",
 

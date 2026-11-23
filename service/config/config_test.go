@@ -393,3 +393,74 @@ func writeTestConfig(t *testing.T, config string) string {
 	}
 	return tmpFile.Name()
 }
+
+func TestLoadConfig_CrashLogFile(t *testing.T) {
+	vars := config.ReplacementVars{
+		ServiceName: "MyServiceName",
+		ServiceRoot: `C:\ProgramFiles\MyService`,
+	}
+	cases := []struct {
+		name  string
+		value string // JSON value for CrashLogFile; "" means the key is omitted
+		want  string
+	}{
+		{"plain path", `"logs/crash.log"`, "logs/crash.log"},
+		{"ServiceRoot replaced", `"${ServiceRoot}/crash.log"`, `C:\ProgramFiles\MyService/crash.log`},
+		{"ServiceName replaced", `"${ServiceName}-crash.log"`, "MyServiceName-crash.log"},
+		{"both replaced", `"${ServiceRoot}/${ServiceName}-crash.log"`, `C:\ProgramFiles\MyService/MyServiceName-crash.log`},
+		{"explicit empty", `""`, ""},
+		{"omitted defaults to empty", "", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			tmpFile := writeTestConfig(t, crashLogTestConfig(tc.value))
+			defer os.Remove(tmpFile)
+
+			c, err := config.LoadConfig(tmpFile, vars)
+			if err != nil {
+				t.Fatalf("Error loading config: %v", err)
+			}
+			if c.ServiceConfig.CrashLogFile != tc.want {
+				t.Errorf("CrashLogFile = %q, want %q", c.ServiceConfig.CrashLogFile, tc.want)
+			}
+		})
+	}
+}
+
+func TestLoadConfigNoReplacements_CrashLogFileKeepsPlaceholders(t *testing.T) {
+	tmpFile := writeTestConfig(t, crashLogTestConfig(`"${ServiceRoot}/${ServiceName}-crash.log"`))
+	defer os.Remove(tmpFile)
+
+	c, err := config.LoadConfigNoReplacements(tmpFile)
+	if err != nil {
+		t.Fatalf("Error loading config: %v", err)
+	}
+	want := "${ServiceRoot}/${ServiceName}-crash.log"
+	if c.ServiceConfig.CrashLogFile != want {
+		t.Errorf("CrashLogFile = %q, want %q", c.ServiceConfig.CrashLogFile, want)
+	}
+}
+
+// crashLogTestConfig builds a minimal config; jsonValue is the raw JSON value
+// for ServiceConfig.CrashLogFile, or "" to omit the key entirely.
+func crashLogTestConfig(jsonValue string) string {
+	crash := ""
+	if jsonValue != "" {
+		crash = `, "CrashLogFile" : ` + jsonValue
+	}
+	return `
+    {
+        "ServiceDescription" : {
+            "DisplayName" : "My Service",
+            "Description" : "My Service Desc"
+        },
+        "ServiceConfig" : {
+            "LogFile" : "${ServiceName}.log"` + crash + `
+        },
+        "Services" : [
+            {
+                "Path" : "test/path/1"
+            }
+        ]
+    }`
+}

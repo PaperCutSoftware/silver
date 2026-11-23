@@ -108,6 +108,17 @@ func run() (exitCode int) {
 	}
 }
 
+// setupCrashOutput is a package-level hook so tests can stub crash capture.
+var setupCrashOutput = logging.SetupCrashOutput
+
+func startCrashCapture(ctx *context) {
+	path := ctx.conf.ServiceConfig.CrashLogFile
+	if path == "" {
+		return
+	}
+	setupCrashOutput(path, ctx.conf.ServiceConfig.UserName, ctx.logger)
+}
+
 func osServiceControl(ctx *context) int {
 	serviceName := serviceName()
 
@@ -150,6 +161,7 @@ func osServiceControl(ctx *context) int {
 		return 0
 	}
 
+	startCrashCapture(ctx)
 	err = svc.Run()
 	if err != nil {
 		fmt.Printf("ERROR: %v\n", err)
