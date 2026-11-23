@@ -61,8 +61,12 @@ type crashResult struct {
 
 func runCrashHelper(t *testing.T, mode string) crashResult {
 	t.Helper()
-	path := filepath.Join(crashTempDir(t), "crash.log")
+	return runCrashHelperAt(t, mode, filepath.Join(crashTempDir(t), "crash.log"))
+}
 
+// runCrashHelperAt runs the crash helper in the given mode against path.
+func runCrashHelperAt(t *testing.T, mode, path string) crashResult {
+	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 
@@ -146,5 +150,40 @@ func TestCrashOutput_CleanExitLeavesLogEmpty(t *testing.T) {
 	}
 	if !strings.Contains(r.stdout, "Crash output enabled: ") {
 		t.Errorf("expected enabled message on child stdout, got %q", r.stdout)
+	}
+}
+
+func TestCrashOutput_PreviousCrashReportedOnce(t *testing.T) {
+	path := filepath.Join(crashTempDir(t), "crash.log")
+
+	crashed := runCrashHelperAt(t, "panic", path)
+	requireNonZeroExit(t, crashed)
+	if !strings.Contains(crashed.crashLog, "panic: silver-crash-test") {
+		t.Fatalf("expected panic message in crash log, got %q; stdout=%q", crashed.crashLog, crashed.stdout)
+	}
+	if strings.Contains(crashed.stdout, "crashed during a previous run") {
+		t.Errorf("expected no previous-crash warning on first run, got %q", crashed.stdout)
+	}
+
+	start := time.Now()
+	first := runCrashHelperAt(t, "clean", path)
+	end := time.Now()
+	if first.err != nil {
+		t.Fatalf("expected clean exit, got %v; stdout=%q", first.err, first.stdout)
+	}
+	if want := "WARNING: Silver crashed during a previous run. See crash log " + path + " (last written "; !strings.Contains(first.stdout, want) {
+		t.Errorf("expected %q on stdout, got %q", want, first.stdout)
+	}
+	checkMarkerAppended(t, path, first.crashLog, crashed.crashLog, start, end)
+
+	second := runCrashHelperAt(t, "clean", path)
+	if second.err != nil {
+		t.Fatalf("expected clean exit, got %v; stdout=%q", second.err, second.stdout)
+	}
+	if strings.Contains(second.stdout, "WARNING") {
+		t.Errorf("expected no warning after a clean restart, got %q", second.stdout)
+	}
+	if second.crashLog != first.crashLog {
+		t.Errorf("expected crash log unchanged by clean run: got %d bytes, want %d bytes", len(second.crashLog), len(first.crashLog))
 	}
 }
