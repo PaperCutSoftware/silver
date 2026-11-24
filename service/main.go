@@ -123,7 +123,7 @@ func startCrashCapture(ctx *context) {
 		ctx.logger.Printf("WARNING: CrashLogFile is ignored because LogFile is %q. The two settings can't be used together.", stdoutLogFile)
 		return
 	}
-	setupCrashOutput(path, ctx.conf.ServiceConfig.UserName, ctx.logger)
+	setupCrashOutput(path, ctx.conf.ServiceConfig.UserName, Version, ctx.logger)
 }
 
 func osServiceControl(ctx *context) int {

@@ -36,7 +36,7 @@ func TestHelperCrash(t *testing.T) {
 
 	// Log to stdout: after the redirect, os.Stderr writes land in the crash log on Unix.
 	logger := log.New(os.Stdout, "", 0)
-	SetupCrashOutput(path, "", logger)
+	SetupCrashOutput(path, "", testVersion, logger)
 
 	switch mode {
 	case "panic", "closed-stderr":
@@ -140,50 +140,65 @@ func TestCrashOutput_FatalErrorCaptured(t *testing.T) {
 	}
 }
 
-func TestCrashOutput_CleanExitLeavesLogEmpty(t *testing.T) {
+func TestCrashOutput_CleanExitWritesOnlyStartHeader(t *testing.T) {
+	start := time.Now()
 	r := runCrashHelper(t, "clean")
+	end := time.Now()
 	if r.err != nil {
 		t.Fatalf("expected clean exit, got %v; stdout=%q stderr=%q", r.err, r.stdout, r.stderr)
 	}
-	if r.crashLog != "" {
-		t.Errorf("expected empty crash log, got %q", r.crashLog)
-	}
+	checkHeaderAppended(t, "crash log", r.crashLog, "", start, end, 0, testVersion)
 	if !strings.Contains(r.stdout, "Crash output enabled: ") {
 		t.Errorf("expected enabled message on child stdout, got %q", r.stdout)
 	}
 }
 
-func TestCrashOutput_PreviousCrashReportedOnce(t *testing.T) {
+// Three runs against one crash log: a panic, then two clean starts. Only the
+// first clean start reports the early termination, and each start appends
+// exactly one start header.
+func TestCrashOutput_EarlyTerminationReportedOnce(t *testing.T) {
 	path := filepath.Join(crashTempDir(t), "crash.log")
-
-	crashed := runCrashHelperAt(t, "panic", path)
-	requireNonZeroExit(t, crashed)
-	if !strings.Contains(crashed.crashLog, "panic: silver-crash-test") {
-		t.Fatalf("expected panic message in crash log, got %q; stdout=%q", crashed.crashLog, crashed.stdout)
-	}
-	if strings.Contains(crashed.stdout, "crashed during a previous run") {
-		t.Errorf("expected no previous-crash warning on first run, got %q", crashed.stdout)
-	}
+	const info = "INFO: Silver terminated early during a previous run."
 
 	start := time.Now()
-	first := runCrashHelperAt(t, "clean", path)
+	crashed := runCrashHelperAt(t, "panic", path)
 	end := time.Now()
-	if first.err != nil {
-		t.Fatalf("expected clean exit, got %v; stdout=%q", first.err, first.stdout)
+	requireNonZeroExit(t, crashed)
+	i := strings.Index(crashed.crashLog, "panic: silver-crash-test")
+	if i < 0 {
+		t.Fatalf("expected panic message in crash log, got %q; stdout=%q", crashed.crashLog, crashed.stdout)
 	}
-	if want := "WARNING: Silver crashed during a previous run. See crash log " + path + " (last written "; !strings.Contains(first.stdout, want) {
-		t.Errorf("expected %q on stdout, got %q", want, first.stdout)
+	if nl := strings.Index(crashed.crashLog[1:], "\n"); nl < 0 || nl+2 > i {
+		t.Errorf("expected a start header before the panic, got %.200q", crashed.crashLog)
+	} else {
+		checkHeaderAppended(t, "panic run header", crashed.crashLog[:nl+2], "", start, end, 0, testVersion)
 	}
-	checkMarkerAppended(t, path, first.crashLog, crashed.crashLog, start, end)
+	if strings.Contains(crashed.stdout, info) {
+		t.Errorf("expected no early-termination message on first run, got %q", crashed.stdout)
+	}
 
-	second := runCrashHelperAt(t, "clean", path)
-	if second.err != nil {
-		t.Fatalf("expected clean exit, got %v; stdout=%q", second.err, second.stdout)
-	}
-	if strings.Contains(second.stdout, "WARNING") {
-		t.Errorf("expected no warning after a clean restart, got %q", second.stdout)
-	}
-	if second.crashLog != first.crashLog {
-		t.Errorf("expected crash log unchanged by clean run: got %d bytes, want %d bytes", len(second.crashLog), len(first.crashLog))
+	prev := crashed.crashLog
+	for _, run := range []struct {
+		name     string
+		wantInfo bool
+	}{
+		{"first clean run", true},
+		{"second clean run", false},
+	} {
+		start := time.Now()
+		r := runCrashHelperAt(t, "clean", path)
+		end := time.Now()
+		if r.err != nil {
+			t.Fatalf("%s: expected clean exit, got %v; stdout=%q", run.name, r.err, r.stdout)
+		}
+		want := info + " See " + path + " (last written "
+		if got := strings.Contains(r.stdout, want); got != run.wantInfo {
+			t.Errorf("%s: %q on stdout = %v, want %v; stdout=%q", run.name, want, got, run.wantInfo, r.stdout)
+		}
+		if !run.wantInfo && strings.Contains(r.stdout, "INFO") {
+			t.Errorf("%s: expected no INFO line, got %q", run.name, r.stdout)
+		}
+		checkHeaderAppended(t, run.name, r.crashLog, prev, start, end, 0, testVersion)
+		prev = r.crashLog
 	}
 }

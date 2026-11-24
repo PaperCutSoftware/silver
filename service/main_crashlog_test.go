@@ -8,6 +8,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 	"time"
@@ -18,9 +19,10 @@ import (
 )
 
 type crashCall struct {
-	path   string
-	owner  string
-	logger *log.Logger
+	path    string
+	owner   string
+	version string
+	logger  *log.Logger
 }
 
 func TestStartCrashCapture(t *testing.T) {
@@ -45,10 +47,13 @@ func TestStartCrashCapture(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			var calls []crashCall
 			orig := setupCrashOutput
-			setupCrashOutput = func(path, owner string, logger *log.Logger) {
-				calls = append(calls, crashCall{path, owner, logger})
+			setupCrashOutput = func(path, owner, version string, logger *log.Logger) {
+				calls = append(calls, crashCall{path, owner, version, logger})
 			}
 			t.Cleanup(func() { setupCrashOutput = orig })
+			origVersion := Version
+			Version = "9.8.7-crashtest"
+			t.Cleanup(func() { Version = origVersion })
 
 			var logBuf bytes.Buffer
 			ctx := &context{
@@ -71,7 +76,7 @@ func TestStartCrashCapture(t *testing.T) {
 				}
 				return
 			}
-			want := crashCall{tc.crashLogFile, tc.userName, ctx.logger}
+			want := crashCall{tc.crashLogFile, tc.userName, "9.8.7-crashtest", ctx.logger}
 			if len(calls) != 1 || calls[0] != want {
 				t.Errorf("setupCrashOutput calls = %+v, want exactly [%+v]", calls, want)
 			}
@@ -87,8 +92,8 @@ const (
 )
 
 // With crash output really enabled, a task's stdout and stderr still reach
-// LogFile and the crash log stays empty. It runs in a subprocess because
-// SetupCrashOutput redirects the process's stderr.
+// LogFile and the crash log holds only its start header. It runs in a
+// subprocess because SetupCrashOutput redirects the process's stderr.
 func TestCrashCapture_ChildOutputStaysInLogFile(t *testing.T) {
 	dir := t.TempDir()
 	ctx, cancel := stdcontext.WithTimeout(stdcontext.Background(), 60*time.Second)
@@ -112,8 +117,9 @@ func TestCrashCapture_ChildOutputStaysInLogFile(t *testing.T) {
 			t.Errorf("LogFile does not contain %q; LogFile:\n%s", want, logData)
 		}
 	}
-	if crashData, _ := os.ReadFile(filepath.Join(dir, "crash.log")); len(crashData) != 0 {
-		t.Errorf("crash log = %q, want empty", crashData)
+	startHeader := regexp.MustCompile(`^\n--- Silver started at [^\n]+ \(pid \d+, version 1\.2\.3-helper\) ---\n$`)
+	if crashData, _ := os.ReadFile(filepath.Join(dir, "crash.log")); !startHeader.Match(crashData) {
+		t.Errorf("crash log = %q, want only a start header", crashData)
 	}
 }
 
@@ -125,7 +131,7 @@ func TestHelperCrashCapture(t *testing.T) {
 	case "runtask":
 		dir := os.Getenv(crashHelperDirEnv)
 		logger := logging.NewFileLogger(filepath.Join(dir, "service.log"), "", "")
-		logging.SetupCrashOutput(filepath.Join(dir, "crash.log"), "", logger)
+		logging.SetupCrashOutput(filepath.Join(dir, "crash.log"), "", "1.2.3-helper", logger)
 
 		os.Setenv(crashHelperEnv, "child") // inherited by the task
 		exitCode, err := svcutil.ExecuteTask(nil, svcutil.TaskConfig{

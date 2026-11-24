@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"regexp"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -130,29 +131,39 @@ func skipIfPermsIgnored(t *testing.T) {
 	}
 }
 
-var restartMarkerRe = regexp.MustCompile(`^\n--- Silver restarted at ([^\n]+) ---\n$`)
+// testVersion is the build version passed to SetupCrashOutput by these tests.
+const testVersion = "1.2.3-test"
 
-// checkMarkerAppended checks got is prefix followed by one restart marker whose
-// time lies within [after, before].
-func checkMarkerAppended(t *testing.T, name, got, prefix string, after, before time.Time) {
+var startHeaderRe = regexp.MustCompile(`^\n--- Silver started at ([^\n]+) \(pid (\d+), version ([^\n]*)\) ---\n$`)
+
+// checkHeaderAppended checks got is prefix followed by exactly one start header
+// whose time lies within [after, before], with the given pid and version.
+// A pid of 0 accepts any pid.
+func checkHeaderAppended(t *testing.T, name, got, prefix string, after, before time.Time, pid int, version string) {
 	t.Helper()
 	if !strings.HasPrefix(got, prefix) {
 		t.Errorf("%s: expected previous content (%d bytes) kept, got %d bytes %.60q", name, len(prefix), len(got), got)
 		return
 	}
 	rest := got[len(prefix):]
-	m := restartMarkerRe.FindStringSubmatch(rest)
+	m := startHeaderRe.FindStringSubmatch(rest)
 	if m == nil {
-		t.Errorf("%s: expected a restart marker appended, got %q", name, rest)
+		t.Errorf("%s: expected exactly one start header appended, got %q", name, rest)
 		return
 	}
 	ts, err := time.Parse(time.RFC3339, m[1])
 	if err != nil {
-		t.Errorf("%s: marker time %q is not RFC3339: %v", name, m[1], err)
+		t.Errorf("%s: header time %q is not RFC3339: %v", name, m[1], err)
 		return
 	}
 	if ts.Before(after.Truncate(time.Second)) || ts.After(before) {
-		t.Errorf("%s: marker time %v not within [%v, %v]", name, ts, after, before)
+		t.Errorf("%s: header time %v not within [%v, %v]", name, ts, after, before)
+	}
+	if pid != 0 && m[2] != strconv.Itoa(pid) {
+		t.Errorf("%s: header pid %s, want %d", name, m[2], pid)
+	}
+	if m[3] != version {
+		t.Errorf("%s: header version %q, want %q", name, m[3], version)
 	}
 }
 
@@ -161,43 +172,40 @@ func TestSetupCrashOutput(t *testing.T) {
 	crash := "panic: boom\n\ngoroutine 1 [running]:\nmain.main()\n"
 	fullCrash := "panic: boom\n" + strings.Repeat("x", crashLogMaxSize-len("panic: boom\n")-1) + "\n"
 	setMTime := func(t *testing.T, path string) { setCrashMTime(t, path) }
-	crashWarning := "WARNING: Silver crashed during a previous run. See crash log <path> (last written <mtime>)."
+	const enabled = "Crash output enabled: <path>"
 	tests := []struct {
 		name         string
 		owner        string
 		existing     string // content written before setup; "" means no file
 		setup        func(t *testing.T, path string)
-		wantFiles    map[string]string // suffix -> content after setup; nil means {"": existing}
+		wantFiles    map[string]string // suffix -> content; for "" the content before the start header. nil means {"": existing}
 		missingDir   bool
 		ownerErr     error
 		redirectErr  error
 		defaultStub  bool // rely on TestMain's stub instead of stubbing here
 		wantRedirect bool
 		wantOwner    bool
-		wantLog      []string // "<path>" is replaced with the crash log path, "<mtime>" with crashMTime in RFC3339
+		wantLog      []string // in order; "<path>" is replaced with the crash log path, "<mtime>" with crashMTime in RFC3339
 		notLog       []string
-		ordered      bool   // wantLog entries must appear in order
-		wantMarker   bool   // wantFiles[markerSuffix] plus one appended restart marker
-		markerSuffix string // file suffix expected to get the restart marker
 	}{
 		{
 			name:         "new file",
 			wantRedirect: true,
-			wantLog:      []string{"Crash output enabled: <path>"},
-			notLog:       []string{"WARNING"},
+			wantLog:      []string{enabled},
+			notLog:       []string{"WARNING", "INFO"},
 		},
 		{
 			name:         "existing file appended",
 			existing:     "previous crash output\n",
 			wantRedirect: true,
-			wantLog:      []string{"Crash output enabled: <path>"},
+			wantLog:      []string{enabled},
 		},
 		{
 			name:         "sets owner",
 			owner:        "svc_user",
 			wantRedirect: true,
 			wantOwner:    true,
-			wantLog:      []string{"Crash output enabled: <path>"},
+			wantLog:      []string{enabled},
 		},
 		{
 			name:         "owner change fails",
@@ -205,7 +213,7 @@ func TestSetupCrashOutput(t *testing.T) {
 			ownerErr:     errors.New("no such user"),
 			wantRedirect: true,
 			wantOwner:    true,
-			wantLog:      []string{"WARNING: Unable to set owner of crash log <path>: ", "Crash output enabled: <path>"},
+			wantLog:      []string{"WARNING: Unable to set owner of crash log <path>: ", enabled},
 		},
 		{
 			name:       "missing directory",
@@ -231,16 +239,16 @@ func TestSetupCrashOutput(t *testing.T) {
 			existing:     full,
 			wantFiles:    map[string]string{"": "", ".1": full, ".2": absent},
 			wantRedirect: true,
-			wantLog:      []string{"Crash output enabled: <path>"},
-			notLog:       []string{"WARNING"},
+			wantLog:      []string{enabled},
+			notLog:       []string{"WARNING", "INFO"},
 		},
 		{
 			name:         "log below limit not rotated",
 			existing:     full[1:],
 			wantFiles:    map[string]string{"": full[1:], ".1": absent},
 			wantRedirect: true,
-			wantLog:      []string{"Crash output enabled: <path>"},
-			notLog:       []string{"WARNING"},
+			wantLog:      []string{enabled},
+			notLog:       []string{"WARNING", "INFO"},
 		},
 		{
 			name:         "rotation fails",
@@ -248,23 +256,22 @@ func TestSetupCrashOutput(t *testing.T) {
 			setup:        func(t *testing.T, path string) { blockRotation(t, path, "backup-one") },
 			wantFiles:    map[string]string{"": full, ".1": "backup-one"},
 			wantRedirect: true,
-			wantLog:      []string{"WARNING: Unable to rotate crash log <path>: ", "Crash output enabled: <path>"},
+			wantLog:      []string{"WARNING: Unable to rotate crash log <path>: ", enabled},
 		},
 		{
 			name:         "previous crash",
 			existing:     crash,
 			setup:        setMTime,
 			wantRedirect: true,
-			wantMarker:   true,
-			ordered:      true,
-			wantLog:      []string{crashWarning, "Crash output enabled: <path>"},
+			wantLog:      []string{"INFO: Silver terminated early during a previous run. See <path> (last written <mtime>).", enabled},
+			notLog:       []string{"WARNING"},
 		},
 		{
-			name:         "clean restart after crash, then stray stderr",
-			existing:     crash + "\n--- Silver restarted at 2024-01-02T03:04:05Z ---\nERROR: Invalid config\n",
+			name:         "start header after crash, then stray stderr",
+			existing:     crash + "\n--- Silver started at 2024-01-02T03:04:05Z (pid 42) ---\nERROR: Invalid config\n",
 			wantRedirect: true,
-			wantLog:      []string{"Crash output enabled: <path>"},
-			notLog:       []string{"WARNING", "crashed"},
+			wantLog:      []string{enabled},
+			notLog:       []string{"WARNING", "INFO", "terminated early"},
 		},
 		{
 			name:         "previous crash in full log",
@@ -272,14 +279,8 @@ func TestSetupCrashOutput(t *testing.T) {
 			setup:        setMTime,
 			wantFiles:    map[string]string{"": "", ".1": fullCrash, ".2": absent},
 			wantRedirect: true,
-			wantMarker:   true,
-			markerSuffix: ".1",
-			ordered:      true,
-			wantLog: []string{
-				"WARNING: Silver crashed during a previous run. See crash log <path>.1 (last written <mtime>).",
-				"Crash output enabled: <path>",
-			},
-			notLog: []string{"See crash log <path> ("},
+			wantLog:      []string{"INFO: Silver terminated early during a previous run. See <path>.1 (last written <mtime>).", enabled},
+			notLog:       []string{"See <path> (", "WARNING"},
 		},
 		{
 			name:     "crash log unreadable",
@@ -290,30 +291,9 @@ func TestSetupCrashOutput(t *testing.T) {
 					t.Fatalf("Chmod: %v", err)
 				}
 			},
-			wantFiles:    map[string]string{}, // the file cannot be read back
 			wantRedirect: true,
-			ordered:      true,
-			wantLog:      []string{"WARNING: Unable to read crash log <path>: ", "Crash output enabled: <path>"},
-			notLog:       []string{"crashed during a previous run"},
-		},
-		{
-			name:     "marking crash log fails",
-			existing: fullCrash,
-			setup: func(t *testing.T, path string) {
-				skipIfPermsIgnored(t)
-				setCrashMTime(t, path)
-				if err := os.Chmod(path, 0444); err != nil {
-					t.Fatalf("Chmod: %v", err)
-				}
-			},
-			wantFiles:    map[string]string{"": "", ".1": fullCrash},
-			wantRedirect: true,
-			ordered:      true,
-			wantLog: []string{
-				"WARNING: Silver crashed during a previous run. See crash log <path>.1 (last written <mtime>).",
-				"WARNING: Unable to mark crash log <path>.1: ",
-				"Crash output enabled: <path>",
-			},
+			wantLog:      []string{"WARNING: Unable to read crash log <path>: ", enabled},
+			notLog:       []string{"terminated early"},
 		},
 	}
 
@@ -340,7 +320,7 @@ func TestSetupCrashOutput(t *testing.T) {
 
 			var buf bytes.Buffer
 			start := time.Now()
-			SetupCrashOutput(path, tc.owner, log.New(&buf, "", 0))
+			SetupCrashOutput(path, tc.owner, testVersion, log.New(&buf, "", 0))
 			end := time.Now()
 			out := buf.String()
 
@@ -349,14 +329,13 @@ func TestSetupCrashOutput(t *testing.T) {
 			for _, w := range tc.wantLog {
 				w = expand.Replace(w)
 				i := strings.Index(out[pos:], w)
-				if tc.ordered && i >= 0 {
-					pos += i + len(w)
-				}
 				if i < 0 {
-					t.Errorf("expected %q in log (ordered=%v), got %q", w, tc.ordered, out)
+					t.Errorf("expected %q in log in order, got %q", w, out)
+					continue
 				}
+				pos += i + len(w)
 			}
-			for _, n := range tc.notLog {
+			for _, n := range append(tc.notLog, "Unable to write start marker") {
 				if n = expand.Replace(n); strings.Contains(out, n) {
 					t.Errorf("expected no %q in log, got %q", n, out)
 				}
@@ -384,24 +363,6 @@ func TestSetupCrashOutput(t *testing.T) {
 				}
 				return
 			}
-			wantFiles := map[string]string{}
-			for k, v := range tc.wantFiles {
-				wantFiles[k] = v
-			}
-			if tc.wantFiles == nil {
-				wantFiles[""] = tc.existing
-			}
-			if tc.wantMarker {
-				prefix := wantFiles[tc.markerSuffix]
-				delete(wantFiles, tc.markerSuffix)
-				got, err := os.ReadFile(path + tc.markerSuffix)
-				if err != nil {
-					t.Errorf("ReadFile %s: %v", path+tc.markerSuffix, err)
-				} else {
-					checkMarkerAppended(t, path+tc.markerSuffix, string(got), prefix, start, end)
-				}
-			}
-			checkCrashFiles(t, path, wantFiles)
 			if tc.existing == "" && runtime.GOOS != "windows" {
 				fi, err := os.Stat(path)
 				if err != nil {
@@ -411,16 +372,34 @@ func TestSetupCrashOutput(t *testing.T) {
 					t.Errorf("expected crash log mode 0644 (subject to umask), got %#o", perm)
 				}
 			}
+			os.Chmod(path, 0644) // make an unreadable fixture readable for the checks below
+
+			wantFiles := map[string]string{"": tc.existing}
+			if tc.wantFiles != nil {
+				wantFiles = map[string]string{}
+				for k, v := range tc.wantFiles {
+					wantFiles[k] = v
+				}
+			}
+			prefix := wantFiles[""]
+			delete(wantFiles, "")
+			if got, err := os.ReadFile(path); err != nil {
+				t.Errorf("ReadFile %s: %v", path, err)
+			} else {
+				checkHeaderAppended(t, path, string(got), prefix, start, end, os.Getpid(), testVersion)
+			}
+			checkCrashFiles(t, path, wantFiles)
 		})
 	}
 }
 
 func TestPreviousRunCrashed(t *testing.T) {
 	fixed := time.Date(2024, time.January, 2, 3, 4, 5, 0, time.UTC)
-	if got, want := restartMarker(fixed), "\n--- Silver restarted at 2024-01-02T03:04:05Z ---\n"; got != want {
-		t.Errorf("restartMarker = %q, want %q", got, want)
+	if got, want := startMarker(fixed, 1234, "1.2.3"), "\n--- Silver started at 2024-01-02T03:04:05Z (pid 1234, version 1.2.3) ---\n"; got != want {
+		t.Errorf("startMarker = %q, want %q", got, want)
 	}
-	marker := restartMarker(fixed)
+	marker := startMarker(fixed, 1234, "1.2.3")
+	const header = "--- Silver started at 2024-01-02T03:04:05Z (pid 1) ---"
 
 	const win = crashLogMaxSize
 	// The window (last win bytes) starts at the "p" of "panic: foo", in the
@@ -428,9 +407,9 @@ func TestPreviousRunCrashed(t *testing.T) {
 	tail := "panic: foo\n" + strings.Repeat("a", win-len("panic: foo\n")-1) + "\n"
 	cutMidLine := "header\nxyz " + tail
 	// A traceback longer than the window: its panic line falls outside.
-	longTrace := "panic: boom\n\n" + strings.Repeat("\tmain.frame()\n", win/len("\tmain.frame()\n")+10) +
+	longTrace := marker + "panic: boom\n\n" + strings.Repeat("\tmain.frame()\n", win/len("\tmain.frame()\n")+10) +
 		"goroutine 7 [running]:\n\tmain.g()\n"
-	// A marker outside the window, then a crash inside it.
+	// A header outside the window, then a crash inside it.
 	oldMarkerThenCrash := marker + strings.Repeat("b", win) + "\npanic: late\n"
 
 	tests := []struct {
@@ -443,29 +422,31 @@ func TestPreviousRunCrashed(t *testing.T) {
 	}{
 		{name: "missing file", noFile: true},
 		{name: "empty file", content: ""},
+		{name: "header only", content: marker},
 		{name: "stray stderr only", content: "ERROR: Invalid config\nsomething else\n"},
-		{name: "crash with no marker", content: "panic: boom\n\ngoroutine 1 [running]:\nmain.main()\n", want: true},
-		{name: "crash followed by marker", content: "panic: boom\n\ngoroutine 1 [running]:\n" + marker},
-		{name: "crash followed by marker with unvalidated time", content: "panic: boom\n--- Silver restarted at not-a-time ---\n"},
-		{name: "marker followed by stray stderr", content: "panic: boom\n" + marker + "ERROR: Invalid config\n"},
-		{name: "marker followed by crash", content: marker + "panic: boom\n", want: true},
-		{name: "crash after the last of several markers", content: "panic: a\n" + marker + "panic: b\n" + marker + "fatal error: c\n", want: true},
-		{name: "crash before the last of several markers", content: marker + "panic: a\n" + marker + "ERROR: x\n"},
+		{name: "crash with no header", content: "panic: boom\n\ngoroutine 1 [running]:\nmain.main()\n", want: true},
+		{name: "crash followed by header", content: "panic: boom\n\ngoroutine 1 [running]:\n" + marker},
+		{name: "header with unvalidated contents", content: "panic: boom\n--- Silver started at not-a-time ---\n"},
+		{name: "header followed by stray stderr", content: "panic: boom\n" + marker + "ERROR: Invalid config\n"},
+		{name: "header followed by crash", content: marker + "panic: boom\n", want: true},
+		{name: "crash after the last of several headers", content: marker + "panic: a\n" + marker + "panic: b\n" + marker + "fatal error: c\n", want: true},
+		{name: "crash before the last of several headers", content: marker + "panic: a\n" + marker + "ERROR: x\n"},
 		{name: "fatal error line", content: "fatal error: sync: unlock of unlocked mutex\n", want: true},
 		{name: "goroutine header only", content: "goroutine 1 [running]:\n", want: true},
 		{name: "multi-digit goroutine header", content: "goroutine 1234 [chan receive]:\n", want: true},
 		{name: "goroutine without number", content: "goroutine x [running]:\ngoroutine [running]:\n"},
 		{name: "crash text not at line start", content: "log: panic: boom\n  fatal error: x\n goroutine 1 [running]:\n"},
 		{name: "panic without colon space", content: "panicking\npanic:boom\n"},
-		{name: "indented marker does not count", content: "panic: boom\n --- Silver restarted at 2024-01-02T03:04:05Z ---\n", want: true},
-		{name: "CRLF crash", content: "panic: boom\r\n\r\ngoroutine 1 [running]:\r\n", want: true},
-		{name: "CRLF crash followed by marker", content: "panic: boom\r\n--- Silver restarted at 2024-01-02T03:04:05Z ---\r\n"},
+		{name: "indented header does not count", content: "panic: boom\n " + header + "\n", want: true},
+		{name: "old restart marker does not count", content: "panic: boom\n--- Silver restarted at 2024-01-02T03:04:05Z ---\n", want: true},
+		{name: "CRLF crash", content: header + "\r\npanic: boom\r\n\r\ngoroutine 1 [running]:\r\n", want: true},
+		{name: "CRLF crash followed by header", content: "panic: boom\r\n" + header + "\r\n"},
 		{name: "crash without trailing newline", content: marker + "panic: boom", want: true},
-		{name: "marker without trailing newline", content: "panic: boom\n--- Silver restarted at 2024-01-02T03:04:05Z ---"},
+		{name: "header without trailing newline", content: "panic: boom\n" + header},
 		{name: "window cut mid-line before panic", content: cutMidLine},
 		{name: "window exactly whole file starting with panic", content: tail, want: true},
 		{name: "traceback longer than window", content: longTrace, want: true},
-		{name: "marker outside window then crash", content: oldMarkerThenCrash, want: true},
+		{name: "header outside window then crash", content: oldMarkerThenCrash, want: true},
 		{name: "read error", dir: true, wantErr: true},
 	}
 
@@ -622,7 +603,7 @@ func TestSetupCrashOutput_FlushesFileLoggers(t *testing.T) {
 	logger := NewFileLogger(logPath, "", "")
 	t.Cleanup(CloseAllOpenFileLoggers)
 
-	SetupCrashOutput(path, "", logger)
+	SetupCrashOutput(path, "", testVersion, logger)
 
 	// Read immediately, without closing the logger or waiting for a timed flush.
 	got, err := os.ReadFile(logPath)
