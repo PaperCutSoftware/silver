@@ -108,6 +108,24 @@ func run() (exitCode int) {
 	}
 }
 
+// setupCrashOutput is a package-level hook so tests can stub crash capture.
+var setupCrashOutput = logging.SetupCrashOutput
+
+const stdoutLogFile = "os.stdout"
+
+func startCrashCapture(ctx *context) {
+	path := ctx.conf.ServiceConfig.CrashLogFile
+	if path == "" {
+		return
+	}
+	// The console error logger writes to os.Stderr, which crash capture redirects on Unix.
+	if ctx.conf.ServiceConfig.LogFile == stdoutLogFile {
+		ctx.logger.Printf("WARNING: CrashLogFile is ignored because LogFile is %q. The two settings can't be used together.", stdoutLogFile)
+		return
+	}
+	setupCrashOutput(path, ctx.conf.ServiceConfig.UserName, Version, ctx.logger)
+}
+
 func osServiceControl(ctx *context) int {
 	serviceName := serviceName()
 
@@ -117,7 +135,7 @@ func osServiceControl(ctx *context) int {
 	if logFile == "" {
 		logFile = serviceName + ".log"
 	}
-	if logFile == "os.stdout" {
+	if logFile == stdoutLogFile {
 		ctx.logger = logging.NewConsoleLogger(ctx.conf.ServiceConfig.LogFileTimestampFormat)
 		ctx.errorLogger = logging.NewConsoleErrorLogger(ctx.conf.ServiceConfig.LogFileTimestampFormat)
 	} else {
@@ -150,6 +168,7 @@ func osServiceControl(ctx *context) int {
 		return 0
 	}
 
+	startCrashCapture(ctx)
 	err = svc.Run()
 	if err != nil {
 		fmt.Printf("ERROR: %v\n", err)

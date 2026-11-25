@@ -49,6 +49,7 @@ type ServiceConfig struct {
 	UserLevel              bool
 	UserName               string
 	LogFileTimestampFormat string
+	CrashLogFile           string
 }
 
 type command struct {
