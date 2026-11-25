@@ -118,6 +118,10 @@ func upgradeComplete(upgradeInfo *update.UpgradeInfo) {
 	// Write version file
 	_ = ioutil.WriteFile(*versionFile, []byte(upgradeInfo.Version+"\n"), 0644)
 
+	if *noReload {
+		return
+	}
+
 	// Request service restart by writing the reload file into our root
 	_ = ioutil.WriteFile(config.ReloadFileName, []byte(""), 0644)
 }

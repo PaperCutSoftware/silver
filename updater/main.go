@@ -29,6 +29,7 @@ var (
 	allowHTTP       = flag.Bool("http", false, "Debug only: Support non-https for update checking")
 	publicKey       = flag.String("public-key", "", "(Optional) Base64 encoded Ed25519 public key for update manifest verification.")
 	allowInsecure   = flag.Bool("insecure", false, "Support insecure & self-signed certificates for update checking")
+	noReload        = flag.Bool("no-reload", false, "Don't request a service restart (skip writing the reload file) after a successful upgrade")
 
 	// This is a deprecated alias for --insecure. Previously this also included HTTP support,
 	// but that is too risky to allow by default, so now it only allows insecure HTTPS certificates.
