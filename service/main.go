@@ -42,6 +42,34 @@ type context struct {
 	mu sync.Mutex
 	// closed once when the service stops
 	done chan struct{}
+
+	// version file contents read before the first loadConf
+	versionBaseline string
+}
+
+// TODO: return true for the all-users service level once the ServiceLevel key exists.
+var isAllUsersService = func(conf *config.Config) bool { return false }
+
+// mockable for tests
+var startReloadWatcher = func(ctx *context) { go watchForReload(ctx) }
+
+// mockable for tests
+var startExternalWatcher = func(ctx *context) {
+	w := &externalUpdateWatcher{
+		VersionFile:    versionFilePath(),
+		Baseline:       ctx.versionBaseline,
+		Poll:           defaultRefreshPoll,
+		MaxRandomDelay: defaultMaxUpdateDelay,
+		Load:           loadConf,
+		Restart:        func(c *config.Config) bool { return restart(ctx, c) },
+		Done:           ctx.done,
+		Logger:         ctx.logger,
+	}
+	go w.Run()
+}
+
+func versionFilePath() string {
+	return filepath.Join(exeFolder(), versionFileName)
 }
 
 func main() {
@@ -70,6 +98,8 @@ func run() (exitCode int) {
 	}
 
 	ctx := &context{done: make(chan struct{})}
+	// Read before loadConf so an update landing during startup is never taken as already running.
+	ctx.versionBaseline = readVersionFile(versionFilePath())
 
 	// Parse config (we don't action any errors quite yet)
 	ctx.conf, err = loadConf()
@@ -302,8 +332,17 @@ func (o *osService) Start(s service.Service) error {
 		o.ctx.logger.Printf("Proxy set to: '%s'", proxy)
 	}
 
+	allUsers := isAllUsersService(o.ctx.conf)
+	if allUsers {
+		o.ctx.logger.Printf("Watching for external updates (service level: all users). Version file: '%s'", versionFilePath())
+	}
+
 	doStart(o.ctx)
-	go watchForReload(o.ctx)
+	if allUsers {
+		startExternalWatcher(o.ctx)
+	} else {
+		startReloadWatcher(o.ctx)
+	}
 
 	return nil
 }
