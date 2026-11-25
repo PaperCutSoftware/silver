@@ -135,6 +135,11 @@ func previousRunCrashed(path string) (crashed bool, crashTime time.Time, err err
 	if err != nil {
 		return false, time.Time{}, err
 	}
+	// Windows reports directories as size 0
+	// return an error rather than short-circuiting and assuming an empty file
+	if !info.Mode().IsRegular() {
+		return false, time.Time{}, fmt.Errorf("%s is not a regular file", path)
+	}
 	size := info.Size()
 	if size == 0 {
 		return false, time.Time{}, nil
