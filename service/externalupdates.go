@@ -48,6 +48,9 @@ func (w *externalUpdateWatcher) Run() {
 		}
 
 		conf, err := w.Load()
+		if err == nil {
+			err = checkConfRunnable(conf)
+		}
 		if err != nil {
 			if msg := err.Error(); msg != loggedErr {
 				w.Logger.Printf("ERROR: Unable to load config for version '%s', keeping current services: %v", v, err)

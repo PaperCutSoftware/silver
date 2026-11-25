@@ -31,8 +31,9 @@ type watcherHarness struct {
 	mu        sync.Mutex
 	loads     int
 	restarts  []string
-	loadErr   func(n int) error // optional: error for the nth (1-based) load
-	restartOK func(n int) bool  // optional: result of the nth (1-based) restart; default true
+	loadErr   func(n int) error    // optional: error for the nth (1-based) load
+	restartOK func(n int) bool     // optional: result of the nth (1-based) restart; default true
+	confHook  func(*config.Config) // optional: adjusts each loaded config (e.g. service paths)
 	firstLoad time.Time
 
 	stopOnce sync.Once
@@ -71,6 +72,9 @@ func (h *watcherHarness) load() (*config.Config, error) {
 	data, _ := os.ReadFile(h.file)
 	conf := emptyConf()
 	conf.EnvironmentVars["VERSION"] = strings.TrimSpace(string(data))
+	if h.confHook != nil {
+		h.confHook(conf)
+	}
 	return conf, nil
 }
 
@@ -291,6 +295,38 @@ func TestExternalUpdateWatcher_StopEndsWaits(t *testing.T) {
 				t.Errorf("restarts = %q, want none after stop", restarts)
 			}
 		})
+	}
+}
+
+// the watcher should retry the config each poll, if it failed to pass validation
+func TestExternalUpdateWatcher_UnrunnableConfigRetried(t *testing.T) {
+	root := t.TempDir()
+	makeTree(t, root, []string{"v1/sub.conf"}, nil)
+	exe := filepath.Join(root, "v*", "x.exe")
+
+	h := newWatcherHarness(t)
+	h.confHook = func(c *config.Config) {
+		c.Include = []string{filepath.Join(root, "v*", "sub.conf")}
+		c.Services = []config.Service{svcAt(exe)}
+	}
+	h.write("1.0")
+	h.start("1.0", testPoll, time.Millisecond)
+	h.write("1.1")
+
+	h.waitFor("repeated loads", func(l int, _ []string) bool { return l >= 4 })
+	time.Sleep(3 * testPoll)
+	if _, restarts := h.snapshot(); len(restarts) != 0 {
+		t.Fatalf("restarts = %q, want none while the config is not runnable", restarts)
+	}
+	if n := strings.Count(h.out.String(), exe); n != 1 {
+		t.Errorf("failing path %q logged %d times, want 1\nlog:\n%s", exe, n, h.out.String())
+	}
+
+	makeTree(t, root, []string{"v1/x.exe"}, nil)
+	h.waitFor("restart after fix", func(_ int, r []string) bool { return len(r) > 0 })
+	time.Sleep(5 * testPoll)
+	if _, restarts := h.snapshot(); fmt.Sprintf("%q", restarts) != fmt.Sprintf("%q", []string{"1.1"}) {
+		t.Errorf("restarts = %q, want exactly [\"1.1\"]", restarts)
 	}
 }
 
