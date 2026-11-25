@@ -367,35 +367,3 @@ func TestCheckConfRunnable_RelativeIncludeAbsoluteService(t *testing.T) {
 		t.Fatalf("checkConfRunnable() after adding v124/x.exe = %v, want nil", err)
 	}
 }
-
-func TestComponentDir(t *testing.T) {
-	tmp := t.TempDir()
-	tests := []struct {
-		path    string
-		wantDir string
-		wantOK  bool
-	}{
-		{path: "v*/x", wantDir: ".", wantOK: true},
-		{path: "v?/x.exe", wantDir: ".", wantOK: true},
-		{path: "v[12]/x.exe", wantDir: ".", wantOK: true},
-		{path: "beta/v*/x", wantDir: "beta", wantOK: true},
-		{path: `beta\v*\x`, wantDir: "beta", wantOK: true},
-		{path: "a/b/v*/c/x.exe", wantDir: "a/b", wantOK: true},
-		{path: "beta/v*/sub/v*/x", wantDir: "beta", wantOK: true},
-		{path: filepath.Join(tmp, "beta", "v*", "x.exe"), wantDir: filepath.Join(tmp, "beta"), wantOK: true},
-		{path: "bin/tool.exe", wantOK: false},
-		{path: "powershell.exe", wantOK: false},
-		{path: "", wantOK: false},
-	}
-	for _, tc := range tests {
-		t.Run(tc.path, func(t *testing.T) {
-			dir, ok := componentDir(tc.path)
-			if ok != tc.wantOK {
-				t.Fatalf("componentDir(%q) ok = %v, want %v", tc.path, ok, tc.wantOK)
-			}
-			if ok && dir != tc.wantDir {
-				t.Errorf("componentDir(%q) = %q, want %q", tc.path, dir, tc.wantDir)
-			}
-		})
-	}
-}

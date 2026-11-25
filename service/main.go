@@ -43,8 +43,8 @@ type context struct {
 	// closed once when the service stops
 	done chan struct{}
 
-	// version file contents read before the first loadConf
-	versionBaseline string
+	// version of each component in use, read before the running config is loaded
+	runningVersions map[component]string
 }
 
 // TODO: return true for the all-users service level once the ServiceLevel key exists.
@@ -56,20 +56,16 @@ var startReloadWatcher = func(ctx *context) { go watchForReload(ctx) }
 // mockable for tests
 var startExternalWatcher = func(ctx *context) {
 	w := &externalUpdateWatcher{
-		VersionFile:    versionFilePath(),
-		Baseline:       ctx.versionBaseline,
-		Poll:           defaultRefreshPoll,
-		MaxRandomDelay: defaultMaxUpdateDelay,
-		Load:           loadConf,
-		Restart:        func(c *config.Config) bool { return restart(ctx, c) },
-		Done:           ctx.done,
-		Logger:         ctx.logger,
+		Components:      componentsOf,
+		RunningVersions: ctx.runningVersions,
+		Poll:            defaultRefreshPoll,
+		MaxRandomDelay:  defaultMaxUpdateDelay,
+		Load:            loadConf,
+		Restart:         func(c *config.Config) bool { return restart(ctx, c) },
+		Done:            ctx.done,
+		Logger:          ctx.logger,
 	}
 	go w.Run()
-}
-
-func versionFilePath() string {
-	return filepath.Join(exeFolder(), versionFileName)
 }
 
 func main() {
@@ -98,11 +94,8 @@ func run() (exitCode int) {
 	}
 
 	ctx := &context{done: make(chan struct{})}
-	// Read before loadConf so an update landing during startup is never taken as already running.
-	ctx.versionBaseline = readVersionFile(versionFilePath())
-
 	// Parse config (we don't action any errors quite yet)
-	ctx.conf, err = loadConf()
+	ctx.conf, ctx.runningVersions, err = loadConfAndRunningVersions(loadConf)
 	if err != nil {
 		_, _ = fmt.Fprintf(os.Stderr, "ERROR: Invalid config - %v\n", err)
 		return 1
@@ -213,6 +206,23 @@ func printUsage(svcDisplayName, svcDesc string) {
 	fmt.Printf("  command   - Run a command [command-name].\n")
 	fmt.Printf("  version   - Display version and target OS/architecture.\n")
 	fmt.Printf("  help      - This usage message.\n")
+}
+
+// loadConfAndRunningVersions calls load, reads the running version of every component that
+// config uses, then calls load again and returns that second config with the versions. The
+// versions are always read before the config that will run is loaded, so an update landing
+// during startup is never taken as already running. A load error from either call is returned.
+func loadConfAndRunningVersions(load func() (*config.Config, error)) (*config.Config, map[component]string, error) {
+	conf, err := load()
+	if err != nil {
+		return nil, nil, err
+	}
+	versions := readRunningVersions(componentsOf(conf))
+	conf, err = load()
+	if err != nil {
+		return nil, nil, err
+	}
+	return conf, versions, nil
 }
 
 func loadConf() (conf *config.Config, err error) {
@@ -334,7 +344,7 @@ func (o *osService) Start(s service.Service) error {
 
 	allUsers := isAllUsersService(o.ctx.conf)
 	if allUsers {
-		o.ctx.logger.Printf("Watching for external updates (service level: all users). Version file: '%s'", versionFilePath())
+		o.ctx.logger.Printf("Watching for external updates (service level: all users). Watching the '.version' files of the components in use: %s", strings.Join(versionFiles(o.ctx.runningVersions), ", "))
 	}
 
 	doStart(o.ctx)
