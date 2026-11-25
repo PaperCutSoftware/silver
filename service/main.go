@@ -37,6 +37,11 @@ type context struct {
 	errorLogger  *log.Logger
 	runningGroup sync.WaitGroup
 	cronManager  *cron.Cron
+
+	// syncs stopServices and restart
+	mu sync.Mutex
+	// closed once when the service stops
+	done chan struct{}
 }
 
 func main() {
@@ -64,7 +69,7 @@ func run() (exitCode int) {
 		return 1
 	}
 
-	ctx := &context{}
+	ctx := &context{done: make(chan struct{})}
 
 	// Parse config (we don't action any errors quite yet)
 	ctx.conf, err = loadConf()
@@ -315,9 +320,14 @@ func doStart(ctx *context) {
 }
 
 func (o *osService) Stop(s service.Service) error {
+	if isClosed(o.ctx.done) {
+		return nil
+	}
 	o.ctx.logger.Printf("Stopping '%s' service...", serviceName())
 
-	doStop(o.ctx)
+	if !stopServices(o.ctx) {
+		return nil
+	}
 
 	pidFile := o.ctx.conf.ServiceConfig.PidFile
 	if pidFile != "" {
@@ -359,6 +369,59 @@ func doStop(ctx *context) {
 		close(ctx.terminate)
 	}
 	ctx.runningGroup.Wait()
+}
+
+func isClosed(ch <-chan struct{}) bool {
+	select {
+	case <-ch:
+		return true
+	default:
+		return false
+	}
+}
+
+// stopServices stops everything for good.
+// returns false if the service had already stopped.
+func stopServices(ctx *context) bool {
+	ctx.mu.Lock()
+	defer ctx.mu.Unlock()
+	if isClosed(ctx.done) {
+		return false
+	}
+	doStop(ctx)
+	close(ctx.done)
+	return true
+}
+
+// restart stops the running services and starts them again with newConf.
+// returns false if the service was already stopped
+func restart(ctx *context, newConf *config.Config) bool {
+	ctx.mu.Lock()
+	defer ctx.mu.Unlock()
+	if isClosed(ctx.done) {
+		return false
+	}
+	doStop(ctx)
+	time.Sleep(time.Second)
+	applyEnvironmentVars(ctx.conf, newConf)
+	ctx.conf = newConf
+	doStart(ctx)
+	return true
+}
+
+// refreshes environment variables when switching conf files
+// does not touch SILVER_* and proxy confs
+func applyEnvironmentVars(oldConf, newConf *config.Config) {
+	if oldConf != nil {
+		for k := range oldConf.EnvironmentVars {
+			if _, ok := newConf.EnvironmentVars[k]; !ok {
+				_ = os.Unsetenv(k)
+			}
+		}
+	}
+	for k, v := range newConf.EnvironmentVars {
+		_ = os.Setenv(k, v)
+	}
 }
 
 func watchForReload(ctx *context) {
