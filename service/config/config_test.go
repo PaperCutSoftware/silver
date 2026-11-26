@@ -6,6 +6,7 @@
 package config_test
 
 import (
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"os"
@@ -403,7 +404,7 @@ func TestLoadConfig_UserData_Replaced(t *testing.T) {
 	vars := config.ReplacementVars{
 		ServiceName: "MyServiceName",
 		ServiceRoot: `C:\Program Files\MyService`,
-		UserData:    `C:\Users\bob\AppData\Local\MyServiceName`,
+		UserData:    func() (string, error) { return `C:\Users\bob\AppData\Local\MyServiceName`, nil },
 	}
 
 	// Act
@@ -449,6 +450,46 @@ func TestLoadConfig_UserData_UnusedAndUnresolved_OK(t *testing.T) {
 	}
 }
 
+func TestLoadConfig_UserData_ResolverError_Reported(t *testing.T) {
+	// Arrange
+	file := writeTestConfig(t, userDataTestConfig)
+	defer os.Remove(file)
+	vars := config.ReplacementVars{
+		ServiceName: "MyServiceName",
+		UserData:    func() (string, error) { return "", errors.New("no home directory") },
+	}
+
+	// Act
+	_, err := config.LoadConfig(file, vars)
+
+	// Assert
+	if err == nil || !strings.Contains(err.Error(), "no home directory") {
+		t.Errorf("Expected resolver error to be reported, got %v", err)
+	}
+}
+
+func TestLoadConfig_UserData_Unused_ResolverNotCalled(t *testing.T) {
+	// Arrange
+	file := writeTestConfig(t, `{"ServiceDescription" : {"DisplayName" : "My Service"}}`)
+	defer os.Remove(file)
+	called := false
+	vars := config.ReplacementVars{
+		ServiceName: "MyServiceName",
+		UserData:    func() (string, error) { called = true; return "", errors.New("should not be called") },
+	}
+
+	// Act
+	_, err := config.LoadConfig(file, vars)
+
+	// Assert
+	if err != nil {
+		t.Errorf("Error loading config: %v", err)
+	}
+	if called {
+		t.Error("UserData resolver called for a conf that doesn't use ${UserData}")
+	}
+}
+
 func TestMergeInclude_UserData_Replaced(t *testing.T) {
 	// Arrange
 	baseFile := writeTestConfig(t, `{"ServiceDescription" : {"DisplayName" : "My Service"}}`)
@@ -457,7 +498,7 @@ func TestMergeInclude_UserData_Replaced(t *testing.T) {
 	defer os.Remove(incFile)
 	vars := config.ReplacementVars{
 		ServiceName: "MyServiceName",
-		UserData:    "/Users/bob/Library/Application Support/MyServiceName",
+		UserData:    func() (string, error) { return "/Users/bob/Library/Application Support/MyServiceName", nil },
 	}
 	baseConf, err := config.LoadConfig(baseFile, vars)
 	if err != nil {

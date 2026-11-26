@@ -12,6 +12,7 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"strings"
@@ -101,7 +102,8 @@ type Command struct {
 type ReplacementVars struct {
 	ServiceName string
 	ServiceRoot string
-	UserData    string // Empty if unresolved; a conf using ${UserData} then fails to load.
+	// UserData resolves ${UserData}. It's only called if a conf uses ${UserData}; nil means unavailable.
+	UserData func() (string, error)
 }
 
 // LoadConfig parses config.
@@ -142,7 +144,7 @@ func LoadConfigNoReplacements(filePath string) (*Config, error) {
 	conf, err := LoadConfig(filePath, ReplacementVars{
 		ServiceName: "${ServiceName}",
 		ServiceRoot: "${ServiceRoot}",
-		UserData:    userDataVar,
+		UserData:    func() (string, error) { return userDataVar, nil },
 	})
 	return conf, err
 }
@@ -165,14 +167,16 @@ func load(path string, vars ReplacementVars) (conf *Config, err error) {
 		return nil, err
 	}
 
-	if vars.UserData == "" && strings.Contains(string(s), userDataVar) {
-		return nil, fmt.Errorf("%s is used in %s but the user data directory could not be resolved", userDataVar, path)
-	}
-
 	replacements := map[string]string{
 		"${ServiceName}": jsonEscapeString(vars.ServiceName),
 		"${ServiceRoot}": jsonEscapeString(vars.ServiceRoot),
-		userDataVar:      jsonEscapeString(vars.UserData),
+	}
+	if strings.Contains(string(s), userDataVar) {
+		userData, err := resolveUserData(vars)
+		if err != nil {
+			return nil, fmt.Errorf("%s is used in %s but the user data directory could not be resolved: %w", userDataVar, path, err)
+		}
+		replacements[userDataVar] = jsonEscapeString(userData)
 	}
 	s = []byte(replaceVars(string(s), replacements))
 
@@ -244,6 +248,13 @@ func replaceVars(in string, replacements map[string]string) (out string) {
 		out = strings.ReplaceAll(out, key, value)
 	}
 	return out
+}
+
+func resolveUserData(vars ReplacementVars) (string, error) {
+	if vars.UserData == nil {
+		return "", errors.New("no user data directory resolver configured")
+	}
+	return vars.UserData()
 }
 
 func jsonEscapeString(in string) (out string) {

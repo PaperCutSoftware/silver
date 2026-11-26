@@ -200,12 +200,11 @@ func printUsage(svcDisplayName, svcDesc string) {
 func loadConf() (conf *config.Config, err error) {
 	// FIXME: Not Get this function out of utils.
 	confPath := getConfigFilePath()
-	// An unresolved user data dir only matters if the conf uses ${UserData}; load() reports it.
-	userData, _ := config.UserDataDir(serviceName())
 	vars := config.ReplacementVars{
 		ServiceName: serviceName(),
 		ServiceRoot: exeFolder(),
-		UserData:    userData,
+		// Resolved only if the conf uses ${UserData}; load() reports any error.
+		UserData: func() (string, error) { return config.UserDataDir(serviceName()) },
 	}
 	conf, err = config.LoadConfig(confPath, vars)
 	if err != nil {
