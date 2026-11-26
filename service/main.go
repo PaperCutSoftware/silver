@@ -111,26 +111,6 @@ func run() (exitCode int) {
 func osServiceControl(ctx *context) int {
 	serviceName := serviceName()
 
-	// Setup log file out
-	logFile := ctx.conf.ServiceConfig.LogFile
-	maxSize := int64(ctx.conf.ServiceConfig.LogFileMaxSizeMb) * 1024 * 1024
-	if logFile == "" {
-		logFile = serviceName + ".log"
-	}
-	// Log dirs a user-level service creates (e.g. under ${UserData}) must be user-only.
-	logDirPerm := os.FileMode(0o755)
-	switch service.ServiceLevel(ctx.conf.ServiceConfig.ServiceLevel) {
-	case service.ServiceLevelUser, service.ServiceLevelAllUsers:
-		logDirPerm = 0o700
-	}
-	if logFile == "os.stdout" {
-		ctx.logger = logging.NewConsoleLogger(ctx.conf.ServiceConfig.LogFileTimestampFormat)
-		ctx.errorLogger = logging.NewConsoleErrorLogger(ctx.conf.ServiceConfig.LogFileTimestampFormat)
-	} else {
-		ctx.logger = logging.NewFileLoggerWithDirPerm(logFile, ctx.conf.ServiceConfig.UserName, maxSize, ctx.conf.ServiceConfig.LogFileMaxBackupFiles, ctx.conf.ServiceConfig.LogFileTimestampFormat, logDirPerm)
-		ctx.errorLogger = ctx.logger // use the same output for both stdout and errors
-	}
-
 	// Setup service
 	level := service.ServiceLevel(ctx.conf.ServiceConfig.ServiceLevel)
 	svcConfig := &service.Config{
@@ -159,8 +139,13 @@ func osServiceControl(ctx *context) int {
 		return 0
 	}
 
+	// Only the running service sets up its log. Control commands (e.g. install) may
+	// run elevated and must not create log dirs/files under that account.
+	setupLogger(ctx, serviceName)
+
 	err = svc.Run()
 	if err != nil {
+		ctx.errorLogger.Printf("ERROR: %v", err)
 		fmt.Printf("ERROR: %v\n", err)
 		return 1
 	}
@@ -170,6 +155,27 @@ func osServiceControl(ctx *context) int {
 		_ = os.WriteFile(pidFile, []byte(fmt.Sprintf("%d\n", os.Getpid())), 0644)
 	}
 	return 0
+}
+
+func setupLogger(ctx *context, serviceName string) {
+	logFile := ctx.conf.ServiceConfig.LogFile
+	maxSize := int64(ctx.conf.ServiceConfig.LogFileMaxSizeMb) * 1024 * 1024
+	if logFile == "" {
+		logFile = serviceName + ".log"
+	}
+	// Log dirs a user-level service creates (e.g. under ${UserData}) must be user-only.
+	logDirPerm := os.FileMode(0o755)
+	switch service.ServiceLevel(ctx.conf.ServiceConfig.ServiceLevel) {
+	case service.ServiceLevelUser, service.ServiceLevelAllUsers:
+		logDirPerm = 0o700
+	}
+	if logFile == "os.stdout" {
+		ctx.logger = logging.NewConsoleLogger(ctx.conf.ServiceConfig.LogFileTimestampFormat)
+		ctx.errorLogger = logging.NewConsoleErrorLogger(ctx.conf.ServiceConfig.LogFileTimestampFormat)
+	} else {
+		ctx.logger = logging.NewFileLoggerWithDirPerm(logFile, ctx.conf.ServiceConfig.UserName, maxSize, ctx.conf.ServiceConfig.LogFileMaxBackupFiles, ctx.conf.ServiceConfig.LogFileTimestampFormat, logDirPerm)
+		ctx.errorLogger = ctx.logger // use the same output for both stdout and errors
+	}
 }
 
 func printUsage(svcDisplayName, svcDesc string) {
