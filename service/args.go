@@ -26,6 +26,8 @@ var validArgs = []string{
 	"uninstall",
 	"start",
 	"stop",
+	"startall",
+	"stopall",
 	"validate",
 	"run",
 	"command",

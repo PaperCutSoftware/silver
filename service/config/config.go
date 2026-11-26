@@ -12,6 +12,7 @@ package config
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io/ioutil"
 	"strings"
@@ -21,6 +22,7 @@ import (
 
 const stopFileName = ".stop"
 const ReloadFileName = ".reload"
+const userDataVar = "${UserData}"
 
 type Config struct {
 	ServiceDescription ServiceDescription
@@ -46,7 +48,8 @@ type ServiceConfig struct {
 	LogFileMaxSizeMb       int64
 	LogFileMaxBackupFiles  int
 	PidFile                string
-	UserLevel              bool
+	UserLevel              bool   // Deprecated: use ServiceLevel "user"
+	ServiceLevel           string // "system" (default), "allusers" or "user"
 	UserName               string
 	LogFileTimestampFormat string
 }
@@ -99,6 +102,8 @@ type Command struct {
 type ReplacementVars struct {
 	ServiceName string
 	ServiceRoot string
+	// UserData resolves ${UserData}. It's only called if a conf uses ${UserData}; nil means unavailable.
+	UserData func() (string, error)
 }
 
 // LoadConfig parses config.
@@ -139,6 +144,7 @@ func LoadConfigNoReplacements(filePath string) (*Config, error) {
 	conf, err := LoadConfig(filePath, ReplacementVars{
 		ServiceName: "${ServiceName}",
 		ServiceRoot: "${ServiceRoot}",
+		UserData:    func() (string, error) { return userDataVar, nil },
 	})
 	return conf, err
 }
@@ -165,6 +171,13 @@ func load(path string, vars ReplacementVars) (conf *Config, err error) {
 		"${ServiceName}": jsonEscapeString(vars.ServiceName),
 		"${ServiceRoot}": jsonEscapeString(vars.ServiceRoot),
 	}
+	if strings.Contains(string(s), userDataVar) {
+		userData, err := resolveUserData(vars)
+		if err != nil {
+			return nil, fmt.Errorf("%s is used in %s but the user data directory could not be resolved: %w", userDataVar, path, err)
+		}
+		replacements[userDataVar] = jsonEscapeString(userData)
+	}
 	s = []byte(replaceVars(string(s), replacements))
 
 	err = json.Unmarshal(s, &conf)
@@ -190,6 +203,11 @@ func (conf *Config) validate() error {
 	if conf.ServiceDescription.DisplayName == "" {
 		return fmt.Errorf("ServiceDescription.DisplayName is required configuration")
 	}
+	switch conf.ServiceConfig.ServiceLevel {
+	case "", "system", "allusers", "user":
+	default:
+		return fmt.Errorf("ServiceConfig.ServiceLevel must be one of system, allusers or user (got %q)", conf.ServiceConfig.ServiceLevel)
+	}
 	return nil
 }
 
@@ -199,6 +217,10 @@ func (conf *Config) applyDefaults() {
 	}
 	if conf.ServiceConfig.ReloadFile == "" {
 		conf.ServiceConfig.ReloadFile = ReloadFileName
+	}
+
+	if conf.ServiceConfig.ServiceLevel == "" && conf.ServiceConfig.UserLevel {
+		conf.ServiceConfig.ServiceLevel = "user"
 	}
 
 	if conf.ServiceConfig.LogFileMaxSizeMb == 0 {
@@ -226,6 +248,13 @@ func replaceVars(in string, replacements map[string]string) (out string) {
 		out = strings.ReplaceAll(out, key, value)
 	}
 	return out
+}
+
+func resolveUserData(vars ReplacementVars) (string, error) {
+	if vars.UserData == nil {
+		return "", errors.New("no user data directory resolver configured")
+	}
+	return vars.UserData()
 }
 
 func jsonEscapeString(in string) (out string) {

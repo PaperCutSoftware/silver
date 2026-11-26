@@ -111,27 +111,16 @@ func run() (exitCode int) {
 func osServiceControl(ctx *context) int {
 	serviceName := serviceName()
 
-	// Setup log file out
-	logFile := ctx.conf.ServiceConfig.LogFile
-	maxSize := int64(ctx.conf.ServiceConfig.LogFileMaxSizeMb) * 1024 * 1024
-	if logFile == "" {
-		logFile = serviceName + ".log"
-	}
-	if logFile == "os.stdout" {
-		ctx.logger = logging.NewConsoleLogger(ctx.conf.ServiceConfig.LogFileTimestampFormat)
-		ctx.errorLogger = logging.NewConsoleErrorLogger(ctx.conf.ServiceConfig.LogFileTimestampFormat)
-	} else {
-		ctx.logger = logging.NewFileLoggerWithMaxSize(logFile, ctx.conf.ServiceConfig.UserName, maxSize, ctx.conf.ServiceConfig.LogFileMaxBackupFiles, ctx.conf.ServiceConfig.LogFileTimestampFormat)
-		ctx.errorLogger = ctx.logger // use the same output for both stdout and errors
-	}
-
 	// Setup service
+	level := service.ServiceLevel(ctx.conf.ServiceConfig.ServiceLevel)
 	svcConfig := &service.Config{
-		Name:        serviceName,
-		DisplayName: ctx.conf.ServiceDescription.DisplayName,
-		Description: ctx.conf.ServiceDescription.Description,
-		UserName:    ctx.conf.ServiceConfig.UserName,
-		Option:      service.KeyValue{"UserService": ctx.conf.ServiceConfig.UserLevel},
+		Name:         serviceName,
+		DisplayName:  ctx.conf.ServiceDescription.DisplayName,
+		Description:  ctx.conf.ServiceDescription.Description,
+		UserName:     ctx.conf.ServiceConfig.UserName,
+		ServiceLevel: level,
+		// Linux backends still read the legacy UserService option.
+		Option: service.KeyValue{"UserService": level == service.ServiceLevelUser},
 	}
 
 	osService := &osService{ctx: ctx}
@@ -150,8 +139,13 @@ func osServiceControl(ctx *context) int {
 		return 0
 	}
 
+	// Only the running service sets up its log. Control commands (e.g. install) may
+	// run elevated and must not create log dirs/files under that account.
+	setupLogger(ctx, serviceName)
+
 	err = svc.Run()
 	if err != nil {
+		ctx.errorLogger.Printf("ERROR: %v", err)
 		fmt.Printf("ERROR: %v\n", err)
 		return 1
 	}
@@ -163,16 +157,39 @@ func osServiceControl(ctx *context) int {
 	return 0
 }
 
+func setupLogger(ctx *context, serviceName string) {
+	logFile := ctx.conf.ServiceConfig.LogFile
+	maxSize := int64(ctx.conf.ServiceConfig.LogFileMaxSizeMb) * 1024 * 1024
+	if logFile == "" {
+		logFile = serviceName + ".log"
+	}
+	// Log dirs a user-level service creates (e.g. under ${UserData}) must be user-only.
+	logDirPerm := os.FileMode(0o755)
+	switch service.ServiceLevel(ctx.conf.ServiceConfig.ServiceLevel) {
+	case service.ServiceLevelUser, service.ServiceLevelAllUsers:
+		logDirPerm = 0o700
+	}
+	if logFile == "os.stdout" {
+		ctx.logger = logging.NewConsoleLogger(ctx.conf.ServiceConfig.LogFileTimestampFormat)
+		ctx.errorLogger = logging.NewConsoleErrorLogger(ctx.conf.ServiceConfig.LogFileTimestampFormat)
+	} else {
+		ctx.logger = logging.NewFileLoggerWithDirPerm(logFile, ctx.conf.ServiceConfig.UserName, maxSize, ctx.conf.ServiceConfig.LogFileMaxBackupFiles, ctx.conf.ServiceConfig.LogFileTimestampFormat, logDirPerm)
+		ctx.errorLogger = ctx.logger // use the same output for both stdout and errors
+	}
+}
+
 func printUsage(svcDisplayName, svcDesc string) {
 	fmt.Printf("%s (%s)\n", svcDisplayName,
 		serviceName())
 	fmt.Printf("%s\n\n", svcDesc)
 	fmt.Printf("Usage:\n")
-	fmt.Printf("%s [install|uninstall|start|stop|command|validate|run|version|help] [command-name]\n", exeName())
+	fmt.Printf("%s [install|uninstall|start|stop|startall|stopall|command|validate|run|version|help] [command-name]\n", exeName())
 	fmt.Printf("  install   - Install the service.\n")
 	fmt.Printf("  uninstall - Remove/uninstall the service.\n")
 	fmt.Printf("  start     - Start an installed service.\n")
 	fmt.Printf("  stop      - Stop an installed service.\n")
+	fmt.Printf("  startall  - Start the service for every logged-in user (allusers level, root).\n")
+	fmt.Printf("  stopall   - Stop the service for every logged-in user (allusers level, root).\n")
 	fmt.Printf("  validate  - Test the configuration file.\n")
 	fmt.Printf("  run       - Run service on in command-line mode.\n")
 	fmt.Printf("  command   - Run a command [command-name].\n")
@@ -186,6 +203,8 @@ func loadConf() (conf *config.Config, err error) {
 	vars := config.ReplacementVars{
 		ServiceName: serviceName(),
 		ServiceRoot: exeFolder(),
+		// Resolved only if the conf uses ${UserData}; load() reports any error.
+		UserData: func() (string, error) { return config.UserDataDir(serviceName()) },
 	}
 	conf, err = config.LoadConfig(confPath, vars)
 	if err != nil {

@@ -3,6 +3,7 @@ package logging
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 	"regexp"
 	"strings"
 	"testing"
@@ -137,5 +138,21 @@ func TestRollingLogFlush_IsFlushed(t *testing.T) {
 	}
 	if !strings.Contains(string(output), "x") {
 		t.Errorf("Expected 'x' in file. It did not flush in time")
+	}
+}
+
+func TestFileLogger_CreatesMissingParentDirs(t *testing.T) {
+	lname := filepath.Join(t.TempDir(), "a", "b", "test.log")
+
+	logger := NewFileLogger(lname, "", "")
+	logger.Print("TestFileLogger_CreatesMissingParentDirs")
+	CloseAllOpenFileLoggers()
+
+	output, err := os.ReadFile(lname)
+	if err != nil {
+		t.Fatalf("Unable to read file: %v", err)
+	}
+	if !strings.Contains(string(output), "TestFileLogger_CreatesMissingParentDirs") {
+		t.Errorf("log message not written, got %q", output)
 	}
 }
