@@ -29,6 +29,7 @@ var (
 	allowHTTP       = flag.Bool("http", false, "Debug only: Support non-https for update checking")
 	publicKey       = flag.String("public-key", "", "(Optional) Base64 encoded Ed25519 public key for update manifest verification.")
 	allowInsecure   = flag.Bool("insecure", false, "Support insecure & self-signed certificates for update checking")
+	rootDir         = flag.String("rootDir", "", "Resolve relative paths (version file, .reload, zip extraction, operations) against this folder")
 
 	// This is a deprecated alias for --insecure. Previously this also included HTTP support,
 	// but that is too risky to allow by default, so now it only allows insecure HTTPS certificates.
@@ -79,6 +80,11 @@ func main() {
 	flag.Usage = usage
 	flag.Parse()
 
+	if err := enterRootDir(*rootDir); err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "ERROR: %v\n", err)
+		os.Exit(1)
+	}
+
 	if *showVersion {
 		fmt.Printf("Current version: %s\n", update.ReadCurrentVersion(*versionFile))
 		return
@@ -118,4 +124,21 @@ func main() {
 	} else {
 		fmt.Printf("Upgrade successful at %s.\n", time.Now().Format(time.RFC822))
 	}
+}
+
+func enterRootDir(rootDir string) error {
+	if rootDir == "" {
+		return nil
+	}
+	info, err := os.Stat(rootDir)
+	if err != nil {
+		return fmt.Errorf("root folder %q: %w", rootDir, err)
+	}
+	if !info.IsDir() {
+		return fmt.Errorf("root folder %q is not a directory", rootDir)
+	}
+	if err := os.Chdir(rootDir); err != nil {
+		return fmt.Errorf("unable to change to root folder %q: %w", rootDir, err)
+	}
+	return nil
 }

@@ -297,8 +297,17 @@ func (o *osService) Start(s service.Service) error {
 		o.ctx.logger.Printf("Proxy set to: '%s'", proxy)
 	}
 
+	reloadFile := o.ctx.conf.ServiceConfig.ReloadFile
+	passive := isAllUsersService(o.ctx.conf)
+	reload := newReloadSignal(reloadFile, passive)
+	mode := "active"
+	if passive {
+		mode = "passive"
+	}
+	o.ctx.logger.Printf("Watching reload file '%s' in %s mode.", reloadFile, mode)
+
 	doStart(o.ctx)
-	go watchForReload(o.ctx)
+	go watchForReload(o.ctx, reload)
 
 	return nil
 }
@@ -361,20 +370,22 @@ func doStop(ctx *context) {
 	ctx.runningGroup.Wait()
 }
 
-func watchForReload(ctx *context) {
-	f := ctx.conf.ServiceConfig.ReloadFile
+// isAllUsersService is a placeholder until Silver has a ServiceLevel setting.
+func isAllUsersService(conf *config.Config) bool {
+	return false
+}
+
+func watchForReload(ctx *context, reload *reloadSignal) {
 	for {
 		// FIXME: File system notification rather than polling?
 		time.Sleep(defaultRefreshPoll)
-		if _, err := os.Stat(f); err == nil {
-			if err := os.Remove(f); err == nil {
-				ctx.logger.Printf("Reload requested. Services will now restart.")
-				doStop(ctx)
-				time.Sleep(time.Second)
-				// Reload config
-				ctx.conf, _ = loadConf()
-				doStart(ctx)
-			}
+		if reload.Poll() {
+			ctx.logger.Printf("Reload requested. Services will now restart.")
+			doStop(ctx)
+			time.Sleep(time.Second)
+			// Reload config
+			ctx.conf, _ = loadConf()
+			doStart(ctx)
 		}
 	}
 }

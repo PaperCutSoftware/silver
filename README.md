@@ -212,7 +212,7 @@ The `updater` binary provides a powerful and secure way to keep your application
 3. If the server (cloud endpoint) returns a manifest for a newer version, the `updater` validates its digital signature.  
 4. It downloads the update package (a `.zip` file) specified in the manifest.  
 5. It verifies the package's checksum (SHA256 or SHA1).  
-6. It extracts the package contents into the service root.  
+6. It extracts the package contents into the service root, or a directory specified.  
 7. It executes any post-update `Operations` defined in the manifest.  
 8. It writes the new version number to the `.version` file.  
 9. Finally, it creates a `.reload` file, signalling the main `service` to perform a graceful restart (e.g. SIGTERM) and load the new version.
@@ -402,6 +402,7 @@ While delivering manifests over a secure HTTPS connection is a fundamental first
 
 * `updater.exe --public-key=... [update-url]`: Checks for and performs an update. Place command-line flags before the update URL.
 * `updater.exe -v`: Displays the current version from the `.version` file.  
+* `updater.exe -rootDir <folder> ...`: Runs in the context of `<folder>`. Resolves all paths relative to `<folder>`.
 * `updater.exe profile-set-random-id`: Sets a unique random ID for this installation, sent to the update server.  
 * `updater.exe profile-set-channel <channel-name>`: Sets the update channel (e.g., `beta`, `stable`), also sent to the update server for targeted rollouts.
 
