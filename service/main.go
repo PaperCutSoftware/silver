@@ -362,19 +362,17 @@ func doStop(ctx *context) {
 }
 
 func watchForReload(ctx *context) {
-	f := ctx.conf.ServiceConfig.ReloadFile
+	reload := newReloadSignal(ctx.conf.ServiceConfig.ReloadFile)
 	for {
 		// FIXME: File system notification rather than polling?
 		time.Sleep(defaultRefreshPoll)
-		if _, err := os.Stat(f); err == nil {
-			if err := os.Remove(f); err == nil {
-				ctx.logger.Printf("Reload requested. Services will now restart.")
-				doStop(ctx)
-				time.Sleep(time.Second)
-				// Reload config
-				ctx.conf, _ = loadConf()
-				doStart(ctx)
-			}
+		if reload.Poll() {
+			ctx.logger.Printf("Reload requested. Services will now restart.")
+			doStop(ctx)
+			time.Sleep(time.Second)
+			// Reload config
+			ctx.conf, _ = loadConf()
+			doStart(ctx)
 		}
 	}
 }
